@@ -212,10 +212,6 @@ export function renderDashboard(
           <label>Legal Retirement Age</label>
           <input type="number" name="govRetirementAge" value="${profile.govRetirementAge}" min="50" max="75">
         </div>
-        <div class="form-group">
-          <label>Estimated Age at Death</label>
-          <input type="number" name="lifeExpectancy" value="${(profile as any).lifeExpectancy || 85}" min="67" max="110">
-        </div>
         <!-- govMonthlyPension hidden — now calculated from SAM + Agirc-Arrco points -->
         <input type="hidden" name="govMonthlyPension" value="${profile.govMonthlyPension}">
         <div class="form-group">
@@ -223,6 +219,12 @@ export function renderDashboard(
           <input type="number" name="contributionQuarters" value="${(profile as any).contributionQuarters ?? Math.round(((profile as any).contributionYears||0)*4)}" min="0" max="200"
             title="Enter validated quarters from work only. 1 year = 4 quarters. E.g. 25 years = 100 quarters.">
           <div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">1 year = 4 quarters — e.g. 25 years = 100 quarters</div>
+        </div>
+        <div class="form-group">
+          <label>Quarters Count — As of Date</label>
+          <input type="date" name="quartersAsOfDate" value="${(profile as any).quartersAsOfDate || '2025-12-31'}"
+            title="Date when the contribution quarters count was last verified on info-retraite.fr">
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">Update this when you check info-retraite.fr</div>
         </div>
         <div class="form-group">
           <label>Military Service Quarters</label>
@@ -704,36 +706,35 @@ export function renderDashboard(
     </div>
 
     <div class="card" style="margin-bottom:20px;">
-      <div class="card-title">📊 Lifetime Pension Value — Scenario Comparison by Life Expectancy</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">
-        Total pension received across your lifetime, for each retirement scenario, depending on when you die.
-        <strong>Adjust your expected life expectancy:</strong>
-        <input type="number" id="life-exp-input" value="${(profile as any).lifeExpectancy || 85}" min="67" max="110" step="1"
-          style="width:65px;margin:0 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:3px 8px;color:var(--text);font-size:13px;"
-          oninput="renderLifetimePensionTable()">
-        years old
+      <div class="card-title">📊 Lifetime Pension Value — All Scenarios × Age of Death</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+        Net total pension received over your lifetime (after deducting strategy costs) for each scenario, depending on when you die.
+        Green = best scenario for that age. Break-even = age at which strategy surpasses "Do Nothing".
       </p>
       <div style="overflow-x:auto;">
-      <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:700px;" id="lifetime-pension-table">
+      <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:820px;">
         <thead>
           <tr style="background:rgba(255,255,255,0.06);">
             <th style="padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);">Scenario</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Monthly pension</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Starts at age</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Upfront cost (net)</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Total at 80</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Total at 85</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Total at 90</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Break-even vs A</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Monthly €</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">From age</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Net cost</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 75</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 80</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 85</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 90</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 95</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Break-even</th>
           </tr>
         </thead>
         <tbody id="lifetime-pension-tbody"></tbody>
       </table>
       </div>
       <p style="font-size:11px;color:var(--muted);margin-top:8px;">
-        * Net cost = after 30% income tax deduction on rachat. Break-even = age at which this scenario overtakes "Do Nothing" in net total.
-        Agirc-Arrco −10% solidarity coefficient applied for 3 years if pension claimed before age 63.
+        * Net cost = after 30% income tax deduction on rachat de trimestres. Agirc-Arrco −10% solidarity coefficient applied for 3 years if pension claimed before age 63.
+        All values in today's euros (not inflation-adjusted).
       </p>
+      <div id="pension-strategy-analysis" style="margin-top:20px;"></div>
     </div>
 
     <div class="card">
@@ -1002,7 +1003,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   p.govMonthlyPension = +fd.get('govMonthlyPension');
   p.contributionQuarters = +fd.get('contributionQuarters') || 0;
   p.militaryServiceQuarters = +fd.get('militaryServiceQuarters') || 0;
-  p.targetContributionYears = +fd.get('targetContributionYears');
+  p.quartersAsOfDate = fd.get('quartersAsOfDate') || '';
   p.lifeExpectancy = +fd.get('lifeExpectancy') || 85;
   try {
     const r = await fetch('/api/save-profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) });
@@ -1022,6 +1023,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   p.govMonthlyPension = +fd.get('govMonthlyPension');
   p.contributionQuarters = +fd.get('contributionQuarters') || 0;
   p.militaryServiceQuarters = +fd.get('militaryServiceQuarters') || 0;
+  p.quartersAsOfDate = fd.get('quartersAsOfDate') || '';
   p.targetContributionYears = +fd.get('targetContributionYears');
 
   const btn = document.getElementById('analyze-btn');
@@ -1204,118 +1206,225 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
 function renderLifetimePensionTable() {
   const tbody = document.getElementById('lifetime-pension-tbody');
   if (!tbody) return;
-  const lifeExp = +(document.getElementById('life-exp-input')?.value || 85);
 
   const calc = calcData;
   const profile = profileData;
   const gapYears = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
   const missingQ = calc.missingQuarters || 0;
   const pensionFull = calc.calculatedPension || profile.govMonthlyPension || 0;
-  const decotePct = missingQ * 0.0125;
-  const pensionReduced = Math.round(pensionFull * (1 - decotePct));
-  const trimRequis = calc.trimestresRequis || 172;
-  const qtrsAtRet = calc.quartersAtRetirement || 0;
+  const decoteRaw = Math.min(0.25, missingQ * 0.0125);
+  const pensionReduced = Math.round(pensionFull * (1 - decoteRaw));
 
-  // Agirc solidarity coeff: -10% for 3yr if claimed before 63
   const agircMonthly = calc.pensionAgircMonthly || 0;
-  const baseMonthly = calc.pensionBaseMonthly || (pensionFull - agircMonthly);
-  function applyAgirc(monthly, claimAge) {
-    if (claimAge >= 63) return monthly;
-    const solidarityYears = Math.min(3, 63 - claimAge);
-    // Only Agirc part is penalised
-    return baseMonthly + agircMonthly * 0.90; // rough: -10% on Agirc portion
+  const baseMonthly = calc.pensionBaseMonthly || Math.max(0, pensionFull - agircMonthly);
+
+  // Net pension per month taking Agirc solidarity penalty into account
+  function monthlyAtAge(monthly, claimAge, ageNow) {
+    if (claimAge >= 63 || ageNow >= claimAge + 3) return monthly;
+    const penaltyYearsLeft = Math.max(0, 3 - (ageNow - claimAge));
+    if (penaltyYearsLeft <= 0) return monthly;
+    return baseMonthly + agircMonthly * 0.9; // -10% on Agirc for up to 3 yrs
   }
 
-  function total(monthly, claimAge, upfrontCost, lifeExpAge) {
-    const claimAgeRounded = claimAge;
-    const yearsCollecting = Math.max(0, lifeExpAge - claimAgeRounded);
-    const monthsNormal = yearsCollecting * 12;
-    // Solidarity penalty: first 3yr if < 63
+  // Total net pension received from claimAge to deathAge, minus upfront cost
+  function totalNet(monthly, claimAge, upfrontCost, deathAge) {
+    if (deathAge <= claimAge) return -upfrontCost;
     let gross = 0;
-    if (claimAge < 63) {
-      const penaltyMonths = Math.min(36, monthsNormal);
-      const normalMonths = Math.max(0, monthsNormal - 36);
-      gross = (baseMonthly + agircMonthly * 0.9) * penaltyMonths + monthly * normalMonths;
-    } else {
-      gross = monthly * monthsNormal;
+    for (let age = claimAge; age < deathAge; age++) {
+      gross += monthlyAtAge(monthly, claimAge, age) * 12;
     }
     return Math.round(gross - upfrontCost);
   }
 
-  const scenarioA_pension = pensionReduced;
-  const scenarioA_claimAge = profile.govRetirementAge;
-
-  // Rachat: max 12 quarters, cost ~€4,000/q net
+  // Rachat: max 12 quarters
   const rachatQ = Math.min(12, missingQ);
   const missingAfterRachat = Math.max(0, missingQ - rachatQ);
-  const decoteAfterRachat = missingAfterRachat * 0.0125;
-  const pensionAfterRachat = Math.round(pensionFull * (1 - decoteAfterRachat));
-  const rachatCostGross = rachatQ * 4500; // ~€4,500/q average at age 51-60
-  const rachatCostNet = Math.round(rachatCostGross * 0.70); // 30% tax saving
+  const pensionAfterRachat = Math.round(pensionFull * (1 - Math.min(0.25, missingAfterRachat * 0.0125)));
+  const rachatCostGross = rachatQ * 4500;
+  const rachatCostNet = Math.round(rachatCostGross * 0.70);
 
-  // CVV: gapYears × 4 quarters
+  // CVV: bridge years × 4 quarters
   const cvvQ = gapYears * 4;
   const missingAfterCVV = Math.max(0, missingQ - cvvQ);
-  const decoteAfterCVV = missingAfterCVV * 0.0125;
-  const pensionAfterCVV = Math.round(pensionFull * (1 - decoteAfterCVV));
-  const cvvCostTotal = gapYears * 2000; // ~€2,000/yr average
+  const pensionAfterCVV = Math.round(pensionFull * (1 - Math.min(0.25, missingAfterCVV * 0.0125)));
+  const cvvCostTotal = Math.round(gapYears * 2000);
 
   // Combined B+C
   const missingAfterBoth = Math.max(0, missingQ - rachatQ - cvvQ);
-  const decoteAfterBoth = missingAfterBoth * 0.0125;
-  const pensionAfterBoth = Math.round(pensionFull * (1 - decoteAfterBoth));
+  const pensionAfterBoth = Math.round(pensionFull * (1 - Math.min(0.25, missingAfterBoth * 0.0125)));
   const bothCostNet = rachatCostNet + cvvCostTotal;
 
-  // Wait until 67 (taux plein automatique)
-  const wait67Pension = pensionFull; // 0% decote guaranteed
-  const wait67ExtraCapital = (profile.monthlyRetirementExpenses || 0) * 24; // 2 extra years bridge
+  // Scenario E: wait until 67 — taux plein automatique, extra 2yr bridge cost
+  const wait67ExtraCost = (profile.monthlyRetirementExpenses || 0) * 24;
 
-  function breakEvenAge(scenarioPension, scenarioCost, scenarioClaimAge) {
-    // Find age where cumulative (scenario - A) overtakes cost difference
-    const basePension = pensionReduced;
-    const baseClaimAge = profile.govRetirementAge;
-    const monthlyDiff = scenarioPension - basePension;
-    if (monthlyDiff <= 0) return '—';
-    // From claimAge, accumulate pension gain minus cost
-    for (let age = scenarioClaimAge; age <= 120; age++) {
-      const yearsS = Math.max(0, age - scenarioClaimAge);
-      const yearsB = Math.max(0, age - baseClaimAge);
-      const totalS = scenarioPension * yearsS * 12 - scenarioCost;
-      const totalB = basePension * yearsB * 12;
-      if (totalS >= totalB) return age;
+  function breakEvenAge(sPension, sCost, sClaimAge) {
+    if (sPension <= pensionReduced && sClaimAge <= profile.govRetirementAge) return '—';
+    for (let age = Math.max(sClaimAge, profile.govRetirementAge); age <= 110; age++) {
+      const tS = totalNet(sPension, sClaimAge, sCost, age);
+      const tA = totalNet(pensionReduced, profile.govRetirementAge, 0, age);
+      if (tS >= tA) return age;
     }
-    return '> 120';
+    return '>110';
   }
 
-  const fmt2 = n => Math.round(n).toLocaleString('fr-FR');
+  const AGES = [75, 80, 85, 90, 95];
+  const fmt2 = n => (n < 0 ? '-€' : '€') + Math.abs(Math.round(n)).toLocaleString('fr-FR');
+
   const scenarios = [
-    { label: 'A — Do nothing', pension: pensionReduced, claimAge: scenarioA_claimAge, cost: 0, color: 'var(--muted)', bold: false },
-    { label: 'B — Rachat 12 qtrs (before 60)', pension: pensionAfterRachat, claimAge: scenarioA_claimAge, cost: rachatCostNet, color: '#bc8cff', bold: false },
-    { label: \`C — CVV \${gapYears} yrs (bridge)\`, pension: pensionAfterCVV, claimAge: scenarioA_claimAge, cost: cvvCostTotal, color: '#58a6ff', bold: false },
-    { label: 'D — Rachat + CVV combined', pension: pensionAfterBoth, claimAge: scenarioA_claimAge, cost: bothCostNet, color: 'var(--green)', bold: pensionAfterBoth >= pensionFull },
-    { label: 'E — Wait until 67 (taux plein)', pension: wait67Pension, claimAge: 67, cost: wait67ExtraCapital, color: 'var(--fire)', bold: true },
+    { label: 'A — Do nothing', pension: pensionReduced, claimAge: profile.govRetirementAge, cost: 0,
+      color: 'var(--muted)', decote: \`\${(decoteRaw*100).toFixed(1)}%\`, tag: '' },
+    { label: 'B — Rachat 12 quarters (before age 60)', pension: pensionAfterRachat, claimAge: profile.govRetirementAge,
+      cost: rachatCostNet, color: '#bc8cff',
+      decote: \`\${(Math.min(0.25,missingAfterRachat*0.0125)*100).toFixed(1)}%\`, tag: rachatQ < missingQ ? '' : '✓ taux plein' },
+    { label: \`C — CVV \${gapYears} yrs × 4 = \${cvvQ} quarters\`, pension: pensionAfterCVV, claimAge: profile.govRetirementAge,
+      cost: cvvCostTotal, color: '#58a6ff',
+      decote: \`\${(Math.min(0.25,missingAfterCVV*0.0125)*100).toFixed(1)}%\`, tag: missingAfterCVV === 0 ? '✓ taux plein' : \`\${missingAfterCVV} qtrs short\` },
+    { label: 'D — Rachat + CVV combined', pension: pensionAfterBoth, claimAge: profile.govRetirementAge,
+      cost: bothCostNet, color: 'var(--green)',
+      decote: \`\${(Math.min(0.25,missingAfterBoth*0.0125)*100).toFixed(1)}%\`, tag: missingAfterBoth === 0 ? '✓ TAUX PLEIN' : \`\${missingAfterBoth} qtrs short\` },
+    { label: 'E — Wait until 67 (taux plein automatique)', pension: pensionFull, claimAge: 67,
+      cost: wait67ExtraCost, color: 'var(--fire)',
+      decote: '0%', tag: '✓ TAUX PLEIN' },
   ];
 
+  // Find best scenario per age column (highest net total)
+  const best = AGES.map(age => {
+    let maxVal = -Infinity, bestIdx = 0;
+    scenarios.forEach((s, i) => { const v = totalNet(s.pension, s.claimAge, s.cost, age); if (v > maxVal) { maxVal = v; bestIdx = i; } });
+    return bestIdx;
+  });
+
   tbody.innerHTML = scenarios.map((s, i) => {
-    const t80 = total(s.pension, s.claimAge, s.cost, 80);
-    const t85 = total(s.pension, s.claimAge, s.cost, 85);
-    const t90 = total(s.pension, s.claimAge, s.cost, 90);
-    const tLife = total(s.pension, s.claimAge, s.cost, lifeExp);
     const be = i === 0 ? '—' : breakEvenAge(s.pension, s.cost, s.claimAge);
-    const best80 = i > 0 && t80 > total(scenarios[0].pension, scenarios[0].claimAge, 0, 80);
-    const best85 = i > 0 && t85 > total(scenarios[0].pension, scenarios[0].claimAge, 0, 85);
-    const bgRow = i === scenarios.length - 1 ? 'background:rgba(255,165,0,0.05);' : '';
-    return \`<tr style="\${bgRow}">
-      <td style="padding:5px 10px;font-weight:\${s.bold?'700':'400'};color:\${s.color};">\${s.label}</td>
-      <td style="padding:5px 10px;text-align:right;">€\${fmt2(s.pension)}/mo</td>
+    const cells = AGES.map((age, ai) => {
+      const v = totalNet(s.pension, s.claimAge, s.cost, age);
+      const isBest = best[ai] === i;
+      return \`<td style="padding:5px 10px;text-align:right;\${isBest?'color:var(--green);font-weight:700;background:rgba(88,214,141,0.08);':''}">\${fmt2(v)}</td>\`;
+    }).join('');
+    return \`<tr>
+      <td style="padding:5px 10px;color:\${s.color};font-weight:600;">\${s.label}<br><span style="font-size:11px;color:var(--muted);">décote \${s.decote} \${s.tag?'— <strong style=\\"color:var(--green);\\">' + s.tag + '</strong>':''}</span></td>
+      <td style="padding:5px 10px;text-align:right;white-space:nowrap;">€\${Math.round(s.pension).toLocaleString('fr-FR')}/mo</td>
       <td style="padding:5px 10px;text-align:right;">\${s.claimAge}</td>
-      <td style="padding:5px 10px;text-align:right;color:var(--red);">\${s.cost > 0 ? '€'+fmt2(s.cost) : '—'}</td>
-      <td style="padding:5px 10px;text-align:right;\${best80?'color:var(--green);font-weight:600;':''}">€\${fmt2(t80)}</td>
-      <td style="padding:5px 10px;text-align:right;\${best85?'color:var(--green);font-weight:600;':''}">€\${fmt2(t85)}</td>
-      <td style="padding:5px 10px;text-align:right;">€\${fmt2(t90)}</td>
+      <td style="padding:5px 10px;text-align:right;color:var(--red);">\${s.cost > 0 ? fmt2(s.cost) : '—'}</td>
+      \${cells}
       <td style="padding:5px 10px;text-align:right;color:\${be==='—'?'var(--muted)':'var(--fire)'};">\${be==='—'?'—':'age '+be}</td>
     </tr>\`;
   }).join('');
+
+  // ── Strategy analysis ─────────────────────────────────────────────────────
+  const analysisEl = document.getElementById('pension-strategy-analysis');
+  if (!analysisEl) return;
+
+  const capHit = decoteRaw >= 0.25;
+  const cvvAloneReachesTP = missingAfterCVV === 0;
+  const combinedReachesTP = missingAfterBoth === 0;
+  const bestAt85 = scenarios[best[2]].label;
+  const gainCvvVsA = pensionAfterCVV - pensionReduced;
+  const gainBothVsA = pensionAfterBoth - pensionReduced;
+  const gainFullVsA = pensionFull - pensionReduced;
+
+  analysisEl.innerHTML = \`
+  <div style="border-top:1px solid var(--border);padding-top:20px;">
+    <div style="font-size:16px;font-weight:700;color:var(--fire);margin-bottom:16px;">🎯 Strategic Analysis & Action Plan</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px;">
+        <div style="font-weight:700;color:var(--text);margin-bottom:10px;">📌 Your Situation at Retirement (age \${profile.targetRetirementAge})</div>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr><td style="padding:3px 0;color:var(--muted);">Quarters validated</td><td style="padding:3px 0;font-weight:600;">\${calc.quartersAtRetirement} / \${calc.trimestresRequis} required</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted);">Missing quarters</td><td style="padding:3px 0;font-weight:600;color:var(--red);">\${missingQ} quarters</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted);">Décote applied</td><td style="padding:3px 0;font-weight:600;color:var(--red);">\${capHit ? '25% (MAX CAP HIT)' : (decoteRaw*100).toFixed(1)+'%'}</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted);">Full pension (taux plein)</td><td style="padding:3px 0;font-weight:600;color:var(--green);">€\${Math.round(pensionFull).toLocaleString('fr-FR')}/month</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted);">Pension with décote (do nothing)</td><td style="padding:3px 0;font-weight:600;color:var(--red);">€\${Math.round(pensionReduced).toLocaleString('fr-FR')}/month</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted);">Monthly loss vs taux plein</td><td style="padding:3px 0;font-weight:700;color:var(--red);">−€\${Math.round(gainFullVsA).toLocaleString('fr-FR')}/month for life</td></tr>
+        </table>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px;">
+        <div style="font-weight:700;color:var(--text);margin-bottom:10px;">💡 Key Insight</div>
+        <p style="font-size:13px;color:var(--text);line-height:1.7;margin:0;">
+          \${capHit
+            ? \`<strong style="color:var(--red);">You have hit the 25% maximum décote cap.</strong> This means doing nothing costs you <strong>€\${Math.round(gainFullVsA).toLocaleString('fr-FR')}/month for life</strong>. Even buying back 1 quarter won't help until you reduce below 20 missing quarters.\`
+            : \`You are \${missingQ} quarters short with a \${(decoteRaw*100).toFixed(1)}% décote. Every quarter you recover increases your pension by €\${Math.round(gainFullVsA/missingQ).toLocaleString('fr-FR')}/month.\`}
+          <br><br>
+          \${cvvAloneReachesTP
+            ? \`<strong style="color:var(--green);">✓ CVV alone (Scenario C) achieves TAUX PLEIN</strong> — \${cvvQ} quarters from \${gapYears} bridge years wipes out all missing quarters at a total cost of only €\${cvvCostTotal.toLocaleString('fr-FR')}. This is your best value strategy.\`
+            : \`CVV alone (Scenario C) reduces your missing quarters from \${missingQ} to \${missingAfterCVV}, saving €\${gainCvvVsA.toLocaleString('fr-FR')}/month. Combining with Rachat \${combinedReachesTP ? 'achieves TAUX PLEIN' : 'further improves your pension'}.\`}
+        </p>
+      </div>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="font-weight:700;color:var(--text);margin-bottom:12px;">📋 Scenario-by-Scenario Analysis</div>
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;">
+        <div style="padding:10px;border-left:3px solid var(--muted);background:rgba(255,255,255,0.02);">
+          <strong style="color:var(--muted);">A — Do Nothing:</strong> Pension of €\${Math.round(pensionReduced).toLocaleString('fr-FR')}/month from age \${profile.govRetirementAge}.
+          Over 20 years (age \${profile.govRetirementAge + 20}): €\${Math.round(pensionReduced*12*20).toLocaleString('fr-FR')} total. This is your <em>baseline</em> — every euro of cost in other scenarios must be judged against this.
+        </div>
+        <div style="padding:10px;border-left:3px solid #bc8cff;background:rgba(188,140,255,0.04);">
+          <strong style="color:#bc8cff;">B — Rachat de Trimestres (12 quarters):</strong> One-time cost ~€\${rachatCostGross.toLocaleString('fr-FR')} gross (€\${rachatCostNet.toLocaleString('fr-FR')} net after 30% tax deduction).
+          Reduces missing from \${missingQ} → \${missingAfterRachat} quarters. Monthly gain: +€\${Math.round(pensionAfterRachat-pensionReduced).toLocaleString('fr-FR')}/month.
+          Break-even vs doing nothing: age \${typeof breakEvenAge(pensionAfterRachat, rachatCostNet, profile.govRetirementAge) === 'number' ? breakEvenAge(pensionAfterRachat, rachatCostNet, profile.govRetirementAge) : '>110'}.
+          <br><em style="color:var(--muted);">⚠️ Must apply to CNAV before you retire. Request a free "chiffrage" (quote) online at info-retraite.fr → rachat de trimestres.</em>
+        </div>
+        <div style="padding:10px;border-left:3px solid #58a6ff;background:rgba(88,166,255,0.04);">
+          <strong style="color:#58a6ff;">C — CVV during bridge period (\${gapYears} years):</strong> Pay ~€2,000/year voluntarily to CPAM (form S3705) — total €\${cvvCostTotal.toLocaleString('fr-FR')} over \${gapYears} years.
+          Earns 4 quarters/year = \${cvvQ} quarters total. Missing: \${missingQ} → \${missingAfterCVV}. Monthly gain: +€\${Math.round(pensionAfterCVV-pensionReduced).toLocaleString('fr-FR')}/month.
+          \${cvvAloneReachesTP ? '<strong style="color:var(--green);">This alone achieves TAUX PLEIN — exceptional ROI.</strong>' : ''}
+          <br><em style="color:var(--muted);">⚠️ Enroll within 6 months of stopping work (age 60). File form S3705 at your CPAM immediately after retirement.</em>
+        </div>
+        <div style="padding:10px;border-left:3px solid var(--green);background:rgba(88,214,141,0.04);">
+          <strong style="color:var(--green);">D — Rachat + CVV combined:</strong> Total net cost €\${bothCostNet.toLocaleString('fr-FR')}.
+          Missing: \${missingQ} → \${missingAfterBoth}. \${combinedReachesTP ? '<strong style="color:var(--green);">TAUX PLEIN achieved.</strong>' : \`\${missingAfterBoth} quarters still short.\`}
+          Monthly pension: €\${Math.round(pensionAfterBoth).toLocaleString('fr-FR')}/month (+€\${Math.round(pensionAfterBoth-pensionReduced).toLocaleString('fr-FR')} vs doing nothing).
+          <br><em style="color:var(--muted);">Best of both worlds — but requires action on two fronts (CNAV for rachat + CPAM for CVV).</em>
+        </div>
+        <div style="padding:10px;border-left:3px solid var(--fire);background:rgba(243,156,18,0.04);">
+          <strong style="color:var(--fire);">E — Wait until 67 (taux plein automatique):</strong> Zero cost to get full pension — guaranteed by law regardless of quarters.
+          But requires funding 2 extra bridge years beyond your plan: ~€\${wait67ExtraCost.toLocaleString('fr-FR')} additional capital needed.
+          Pension: €\${Math.round(pensionFull).toLocaleString('fr-FR')}/month from age 67.
+          <br><em style="color:var(--muted);">Simple, free, and risk-free — but you give up pension income from age 65–67 and need more capital.</em>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:rgba(88,214,141,0.06);border:1px solid rgba(88,214,141,0.3);border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="font-weight:700;color:var(--green);margin-bottom:10px;">⏰ Action Timeline — What to Do & When</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">1</span>
+          <div><strong style="color:var(--text);">NOW (age \${profile.age || 51}) — Request rachat quote (free & non-binding):</strong><br>
+          Go to <em>info-retraite.fr → Mon compte → Racheter des trimestres</em> and request a "chiffrage officiel". You have until the day you retire to pay, but costs rise each year. Locking in a quote now protects you from price increases. Budget ~€\${rachatCostGross.toLocaleString('fr-FR')} gross / €\${rachatCostNet.toLocaleString('fr-FR')} net.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">2</span>
+          <div><strong style="color:var(--text);">Before age 60 (before retiring) — Pay rachat if choosing B or D:</strong><br>
+          Pay the full amount (ideally in the same tax year where your income is still high — maximises the 30% deduction). Declare on your <em>déclaration de revenus</em> as charges déductibles.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">3</span>
+          <div><strong style="color:var(--text);">Within 6 months of retiring (age 60) — Enroll in CVV if choosing C or D:</strong><br>
+          File form S3705 with your CPAM (Caisse Primaire d'Assurance Maladie). <strong style="color:var(--red);">This is a hard deadline — missing it means losing all CVV quarters.</strong> Pay ~€2,000/year for \${gapYears} years. Confirm each year to maintain enrollment.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">4</span>
+          <div><strong style="color:var(--text);">Age 63 — Claim Agirc-Arrco pension (complementary):</strong><br>
+          If you claim Agirc-Arrco before age 63, a solidarity coefficient of −10% applies for 3 years. Wait until exactly 63 to avoid this penalty — it costs you \${3*12} months × €\${Math.round(agircMonthly*0.1).toLocaleString('fr-FR')}/month = ~€\${Math.round(agircMonthly*0.1*36).toLocaleString('fr-FR')} if you claim too early.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:#58a6ff;color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">5</span>
+          <div><strong style="color:var(--text);">Age \${profile.govRetirementAge} — Claim full state pension:</strong><br>
+          File your pension claim 4–6 months in advance at <em>info-retraite.fr → Demander ma retraite</em>. At this point all CVV quarters are validated and rachat quarters are already recorded. Your pension starts the month after the effective claim date.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:rgba(255,165,0,0.06);border:1px solid rgba(255,165,0,0.3);border-radius:8px;padding:14px;font-size:13px;">
+      <strong style="color:var(--fire);">📊 Bottom Line — Best strategy at age 85 (median life expectancy):</strong>
+      <span style="color:var(--text);"> <strong>\${bestAt85}</strong> gives the highest net lifetime pension if you live to 85.
+      The table above shows exactly when each strategy becomes the winner — use it to calibrate against your own life expectancy assumptions.</span>
+    </div>
+  </div>
+  \`;
 }
 
 // ═══ INIT ═══

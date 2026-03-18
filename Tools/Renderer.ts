@@ -218,10 +218,6 @@ export function renderDashboard(
           <label>Contribution Years (so far)</label>
           <input type="number" name="contributionYears" value="${profile.contributionYears}" min="0" max="50">
         </div>
-        <div class="form-group">
-          <label>Years Required for Full Pension</label>
-          <input type="number" name="targetContributionYears" value="${profile.targetContributionYears}" min="1" max="50">
-        </div>
 
         <div class="form-group full" style="margin-top:8px;">
           <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">🧮 Precise French Pension Inputs <span style="font-weight:400;font-size:0.8rem;color:var(--muted)">(from your relevé de carrière on info-retraite.fr)</span></div>

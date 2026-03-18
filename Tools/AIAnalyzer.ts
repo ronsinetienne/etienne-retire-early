@@ -25,7 +25,8 @@ function buildContext(profile: UserProfile, calc: FireResult, saleProceeds: numb
 Bridge period: ${gapYears} years. Monthly budget in retirement: ${fmt(profile.monthlyRetirementExpenses||0)}.
 
 CAPITAL AT RETIREMENT (age ${profile.targetRetirementAge}):
-- House sale: ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − fees 3% = ${fmt(saleProceedsFull)} − gift to kids ${fmt(giftToKids)} = NET ${fmt(saleProceeds)}
+- House sale: ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − agency fees 4% (${fmt(Math.round((profile.realEstateValue||0)*0.04))}) − diagnostics €1,000 = ${fmt(saleProceedsFull)} − gift to kids ${fmt(giftToKids)} = NET ${fmt(saleProceeds)}
+- NOTE: notary fees (frais de notaire) are paid by the BUYER in France, not the seller
 - Stock portfolio: ${fmt(profile.stockPortfolio||0)} growing at ${((profile.estimatedReturn||0.05)*100).toFixed(0)}%/yr for ${yearsToRetirement} yrs = ${fmt(stocksAtRetirement)} at retirement
 - Cash: ${fmt(profile.currentSavings||0)}
 - TOTAL CAPITAL AT ${profile.targetRetirementAge}: ${fmt(totalCapital)}
@@ -76,7 +77,12 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
 
   const gapYears        = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
   const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
-  const saleProceedsFull = saleNet - Math.round(saleNet * 0.03);
+  // Agency fees: ~4% for a high-value property (€900k range) in France
+  // NOTE: notary fees (frais de notaire) are paid by the BUYER, not the seller
+  // Seller pays: agency fees (3-5%) + diagnostics (~€1,000) + IRA mortgage penalty if any
+  const agencyFeeRate   = 0.04;
+  const diagnostics     = 1000;
+  const saleProceedsFull = saleNet - Math.round(saleNet * agencyFeeRate) - diagnostics;
   const giftToKids      = profile.giftToChildren || 0;
   const saleProceeds    = saleProceedsFull - giftToKids;
   const ageActuel       = profile.age || 51;
@@ -114,7 +120,7 @@ Return JSON with exactly these 5 keys (each value = plain HTML string):
 
 "stocks": Table: allocation%|product|amount|monthly income. ETFs with ISIN. Platforms.
 
-"realEstate": Table: sale price ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − fees 3% − gift to kids ${fmt(giftToKids)} = net ${fmt(saleProceeds)}. Stocks: ${fmt(profile.stockPortfolio||0)} growing to ${fmt(stocksAtRetirement)} in ${yearsToRetirement} yrs. Bretagne free housing saving. Best timing to sell.
+"realEstate": Table: sale price ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − agency fees 4% ${fmt(Math.round((profile.realEstateValue||0)*0.04))} − diagnostics €1,000 − gift to kids ${fmt(giftToKids)} = net ${fmt(saleProceeds)}. Clarify: notary fees (frais de notaire ~7-8%) are paid by the BUYER not the seller. Stocks: ${fmt(profile.stockPortfolio||0)} growing to ${fmt(stocksAtRetirement)} in ${yearsToRetirement} yrs. Bretagne free housing saving. Best timing to sell.
 
 "realism": 3-row table (optimistic/realistic/pessimistic|monthly budget|capital at ${profile.govRetirementAge}|verdict). Score /10.`;
 

@@ -68,8 +68,8 @@ ${profile.notes || '(aucune note fournie)'}
 
 ---
 
-Fournis une réponse JSON avec exactement ces 6 clés. Chaque valeur est un LONG snippet HTML riche (utilise <h4>, <p>, <ul>, <li>, <strong>, <table>, <tr>, <td>, <th>).
-Chaque section doit faire au minimum 500 mots. Sois TRÈS spécifique, chiffré, et actionnable. Utilise des tableaux HTML partout où c'est pertinent.
+Fournis une réponse JSON avec exactement ces 6 clés. Chaque valeur est un snippet HTML (utilise <h4>, <p>, <ul>, <li>, <strong>, <table>, <tr>, <td>, <th>).
+Sois spécifique, chiffré, et actionnable. Utilise des tableaux HTML là où c'est pertinent. Sois concis mais complet.
 
 === 1. "realism" ===
 Analyse honnête et détaillée de faisabilité. Score /10 justifié. Ce qui est réaliste, ce qui ne l'est pas, les 3 plus grands obstacles, et comment les surmonter concrètement. Prends en compte les notes de l'utilisateur.
@@ -80,7 +80,7 @@ SIMULATION FINANCIÈRE DÉTAILLÉE ANNÉE PAR ANNÉE.
 Construis obligatoirement un tableau HTML complet avec ces colonnes:
 Année | Âge | Revenus | Dépenses | Épargne annuelle | Investissement cumulé | Patrimoine total | Étape clé
 
-Couvre TOUTES les années depuis aujourd'hui jusqu'à la retraite (âge ${profile.targetRetirementAge}) puis la période pont jusqu'à ${profile.govRetirementAge} ans.
+Couvre les années clés depuis aujourd'hui jusqu'à la retraite (âge ${profile.targetRetirementAge}) puis la période pont jusqu'à ${profile.govRetirementAge} ans. Regroupe par tranches de 2-3 ans si la période est longue.
 Pour chaque ligne, calcule:
 - Les revenus attendus (salaire, locatif, dividendes progressifs)
 - Les dépenses projetées (inflation ${(profile.inflation*100).toFixed(1)}%/an)
@@ -144,7 +144,7 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON valide. Pas de markdown, pas de \`\`
   try {
     const response = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 16000,
+      max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
     });
 

@@ -779,7 +779,15 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   const btn = document.getElementById('analyze-btn');
   const status = document.getElementById('analyze-status');
   btn.disabled = true; btn.textContent = '⏳ Analyzing...';
-  status.textContent = 'Sending to Claude AI...';
+  status.textContent = '🔄 Claude AI is working... this takes 30–90 seconds, please wait.';
+  status.style.color = 'var(--fire)';
+
+  // Countdown ticker so user knows it's working
+  let elapsed = 0;
+  const ticker = setInterval(() => {
+    elapsed++;
+    status.textContent = \`🔄 Claude AI is working... \${elapsed}s elapsed, please wait.\`;
+  }, 1000);
 
   try {
     const res = await fetch('/api/analyze', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) });
@@ -813,12 +821,15 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
       }
     }
 
-    status.textContent = '✓ Analysis complete';
-    setTimeout(() => status.textContent = '', 3000);
+    clearInterval(ticker);
+    status.textContent = '✓ Analysis complete (' + elapsed + 's)';
+    status.style.color = 'var(--green)';
+    setTimeout(() => { status.textContent=''; status.style.color=''; }, 4000);
   } catch(e) {
+    clearInterval(ticker);
     status.textContent = '✗ ' + (e.message || 'Error. Check your ANTHROPIC_API_KEY in .env');
     status.style.color = 'var(--red)';
-    setTimeout(() => { status.textContent=''; status.style.color=''; }, 5000);
+    setTimeout(() => { status.textContent=''; status.style.color=''; }, 6000);
   } finally {
     btn.disabled = false; btn.textContent = '🤖 Analyze with AI';
   }

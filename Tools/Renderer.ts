@@ -643,6 +643,7 @@ export function renderDashboard(
           <div style="font-size:13px;color:var(--muted);">Best 25 years total: <span id="sam-total" style="color:var(--text);">—</span></div>
           <button onclick="applySam()" style="padding:7px 18px;background:var(--green);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">✓ Apply this SAM to profile</button>
         </div>
+        <div id="sam-count" style="margin-top:6px;font-size:11px;color:var(--muted);"></div>
         <p style="font-size:11px;color:var(--muted);margin-top:8px;">
           ℹ️ PASS values 2026–2034 are estimates (approx. +2%/yr). Actual values will be set each November by Arrêté.
           Only base pension (CNAV) uses SAM — Agirc-Arrco uses your points instead.
@@ -1127,13 +1128,13 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   };
 
   const birthYear = profileData.birthYear || 1974;
-  const retireYear = (profileData.age || 51) < 60
-    ? new Date().getFullYear() + (60 - (profileData.age || 51))
-    : new Date().getFullYear() + (profileData.targetRetirementAge - (profileData.age || 51));
+  // Retirement year = birth year + target age (e.g. 1974 + 60 = 2034)
+  // Include the retirement year itself (last partial working year still validates quarters)
+  const retireYear = birthYear + (profileData.targetRetirementAge || 60);
   const startYear = Math.max(birthYear + 20, 1995); // assume career start at 20
 
   const rows = [];
-  for (let y = startYear; y < retireYear; y++) {
+  for (let y = startYear; y <= retireYear; y++) {  // inclusive: include retirement year
     rows.push({ year: y, salary: KNOWN_SALARY[y] || 0, pass: PASS[y] || Math.round(56289 * Math.pow(1.02, y - 2034)) });
   }
 
@@ -1169,10 +1170,13 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
       </tr>\`;
     }).join('');
 
+    const best25Years = [...best25Set].sort((a,b) => a-b);
     const samEl = document.getElementById('sam-result');
     const totEl = document.getElementById('sam-total');
+    const cntEl = document.getElementById('sam-count');
     if (samEl) samEl.textContent = sam > 0 ? '€' + sam.toLocaleString('fr-FR') : '—';
     if (totEl) totEl.textContent = total > 0 ? '€' + total.toLocaleString('fr-FR') : '—';
+    if (cntEl) cntEl.textContent = \`Best \${best25.length} years: \${best25Years[0]}–\${best25Years[best25Years.length-1]} (\${best25.length} years × avg PASS = SAM)\`;
   }
 
   window._samUpdate = function(year, val) {

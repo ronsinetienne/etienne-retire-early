@@ -16,151 +16,118 @@ function fmt(n: number): string {
   return `€${Math.round(n).toLocaleString('fr-FR')}`;
 }
 
+function buildContext(profile: UserProfile, saleProceeds: number, gapYears: number,
+  trimestresValides: number, trimestresRequis: number, yearsToRetirement: number, ageActuel: number) {
+  return `Profile: age ${ageActuel}, retire at ${profile.targetRetirementAge}, state pension at ${profile.govRetirementAge}.
+House sale net: ${fmt(saleProceeds)}. Monthly budget: ${fmt(profile.monthlyRetirementExpenses||0)}. Bridge: ${gapYears} yrs.
+Quarters validated: ${trimestresValides}/${trimestresRequis}. At retirement (age ${profile.targetRetirementAge}): ${trimestresValides + yearsToRetirement*4} quarters, missing ${Math.max(0, trimestresRequis-(trimestresValides+yearsToRetirement*4))}.
+State pension estimate: ${fmt(profile.govMonthlyPension||0)}/month. Inheritance: ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}.
+Cash: ${fmt(profile.currentSavings||0)}. Stocks: ${fmt(profile.stockPortfolio||0)}.
+Retirement home (${profile.secondPropertyCity||'Bretagne'}): owned, no mortgage.
+User notes: ${profile.notes || 'none'}`;
+}
+
+async function callAI(client: Anthropic, prompt: string): Promise<Record<string, string>> {
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 8192,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
+  let cleaned = text.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  if (response.stop_reason === 'max_tokens') {
+    console.warn('⚠️ Response truncated — attempting JSON repair');
+    cleaned = cleaned.replace(/,\s*"[^"]*$/, '');
+    const lastColon = cleaned.lastIndexOf(':"');
+    if (lastColon > 0 && !cleaned.endsWith('}')) {
+      const lastClose = cleaned.lastIndexOf('"}');
+      if (lastClose < lastColon) {
+        cleaned = cleaned.substring(0, lastColon) + ':"<truncated>"}';
+      } else {
+        cleaned += '}';
+      }
+    }
+    if (!cleaned.endsWith('}')) cleaned += '}';
+  }
+  return JSON.parse(cleaned);
+}
+
 export async function analyzeProfile(profile: UserProfile, calc: FireResult): Promise<AIAnalysis> {
   const apiKey = process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return fallbackAnalysis(calc);
-  }
+  if (!apiKey) return fallbackAnalysis(calc);
 
   const client = new Anthropic({ apiKey });
 
-  const gapYears   = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
-  const saleNet    = Math.max(0, (profile.realEstateValue || 0) - (profile.mortgageRemaining || 0));
-  const notaireFees= Math.round(saleNet * 0.03); // ~3% agent/frais
-  const saleProceeds = saleNet - notaireFees;
-  const bridgeMonths = gapYears * 12;
-  const naiveMonthly = bridgeMonths > 0 ? Math.round(saleProceeds / bridgeMonths) : 0;
-  const trimestresValides   = (profile.contributionYears || 0) * 4;
-  const trimestresRequis    = (profile.targetContributionYears || 43) * 4;
-  const trimestresManquants = Math.max(0, trimestresRequis - trimestresValides);
-  const ageActuel = profile.age || 51;
-  const yearsToRetirement = Math.max(0, profile.targetRetirementAge - ageActuel);
+  const gapYears        = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
+  const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
+  const saleProceeds    = saleNet - Math.round(saleNet * 0.03);
+  const trimestresValides   = (profile.contributionYears||0) * 4;
+  const trimestresRequis    = (profile.targetContributionYears||43) * 4;
+  const ageActuel       = profile.age || 51;
+  const yearsToRetirement   = Math.max(0, profile.targetRetirementAge - ageActuel);
+  const quartersAtRetirement = trimestresValides + yearsToRetirement * 4;
+  const missingAtRetirement  = Math.max(0, trimestresRequis - quartersAtRetirement);
+  const decotePct       = (missingAtRetirement * 1.25).toFixed(1);
+  const pensionReduced  = Math.round((profile.govMonthlyPension||0) * (1 - missingAtRetirement * 0.0125));
+  const totalCapital    = saleProceeds + (profile.currentSavings||0) + (profile.stockPortfolio||0);
+  const bridgeTotal     = (profile.monthlyRetirementExpenses||0) * 12 * gapYears;
+  const capitalAt65     = Math.round(totalCapital - bridgeTotal + totalCapital * 0.03 * gapYears * 0.5);
 
-  const prompt = `Tu es un conseiller financier et expert en droit de la retraite française.
-L'utilisateur NE veut PAS un calcul FIRE abstrait. Il veut une RÉFLEXION PROFONDE et un PLAN D'ACTION CONCRET basé sur sa situation réelle.
+  const ctx = buildContext(profile, saleProceeds, gapYears, trimestresValides, trimestresRequis, yearsToRetirement, ageActuel);
 
-NOTES DE L'UTILISATEUR (lis attentivement, prends tout en compte):
-"""
-${profile.notes || '(pas de notes)'}
-"""
+  // ── CALL 1: Financial plan (summary + firePlan + stocks + realEstate + realism) ─────────
+  const prompt1 = `You are a retirement financial advisor. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Use HTML (h4,p,ul,li,strong,table,tr,td,th) in values. Be concise — max 300 words per section.
 
-═══════════════════════════════════════
-SITUATION FINANCIÈRE RÉELLE DE L'UTILISATEUR
-═══════════════════════════════════════
-- Âge actuel: ${ageActuel} ans
-- Revenu mensuel net actuel: ${fmt(profile.monthlyIncome || 0)}
-- Dépenses mensuelles actuelles: ${fmt(profile.monthlyExpenses || 0)}
-- Épargne mensuelle actuelle: ${fmt(Math.max(0, (profile.monthlyIncome||0) - (profile.monthlyExpenses||0)))}
-- Cash/épargne disponible: ${fmt(profile.currentSavings || 0)}
-- Portefeuille boursier: ${fmt(profile.stockPortfolio || 0)}
+${ctx}
 
-IMMOBILIER:
-- Maison à VENDRE (${profile.secondPropertyCity ? 'résidence principale actuelle' : 'Versailles'}): ${fmt(profile.realEstateValue || 0)} — crédit restant: ${fmt(profile.mortgageRemaining || 0)}
-- Net de vente estimé (après remboursement crédit, ~3% frais): ${fmt(saleProceeds)}
-- Maison de retraite${profile.secondPropertyCity ? ` (${profile.secondPropertyCity})` : ' (Bretagne)'}: ${fmt(profile.secondPropertyValue || 0)} — SANS crédit → vivra là gratuitement
-- Revenu locatif mensuel actuel: ${fmt(profile.monthlyRentalIncome || 0)}
+Return JSON with these 5 keys:
 
-HÉRITAGE:
-- Montant attendu: ${fmt(profile.inheritanceAmount || 0)} à l'âge de ${profile.inheritanceAge || 65} ans
+"summary": 3 things: (1) Total capital at ${profile.targetRetirementAge}: ${fmt(totalCapital)}. Budget ${fmt(profile.monthlyRetirementExpenses||0)}/month × ${gapYears*12} months = ${fmt(bridgeTotal)} needed. Capital remaining at ${profile.govRetirementAge}: ~${fmt(capitalAt65)} + inheritance ${fmt(profile.inheritanceAmount||0)} = ${fmt(capitalAt65+(profile.inheritanceAmount||0))}. Show as 3-row table (conservative/moderate/optimistic). (2) Monthly income at ${profile.govRetirementAge}: pension + investment returns. (3) 2 urgent actions in next 6 months.
 
-OBJECTIF RETRAITE:
-- Veut partir à: ${profile.targetRetirementAge || 60} ans (dans ${yearsToRetirement} ans)
-- Retraite légale française: ${profile.govRetirementAge || 65} ans
-- Période "pont" sans revenus: ${gapYears} ans (de ${profile.targetRetirementAge} à ${profile.govRetirementAge} ans)
-- Budget mensuel souhaité en retraite: ${fmt(profile.monthlyRetirementExpenses || 0)}
-- Pension d'État estimée: ${fmt(profile.govMonthlyPension || 0)}/mois
-- Années de cotisation validées: ${profile.contributionYears || 0} ans = ${trimestresValides} trimestres
-- Trimestres requis pour taux plein: ${trimestresRequis}
-- Trimestres manquants si arrêt à ${profile.targetRetirementAge}: ${trimestresManquants}
+"firePlan": Year-by-year table (Year|Age|Event|Capital Start|Expenses|Capital End). Cover: ${yearsToRetirement} yrs pre-retirement + ${gapYears} bridge years + 3 yrs post-${profile.govRetirementAge}. Show capital depleting at ${fmt(profile.monthlyRetirementExpenses||0)}/month with 3% return. Mark inheritance at age ${profile.inheritanceAge||65}. Then: 3-line investment allocation for the ${fmt(saleProceeds)}.
 
-CALCUL CLÉ DE LA PÉRIODE PONT:
-- Durée de la période sans revenus: ${gapYears} ans = ${bridgeMonths} mois
-- Capital disponible (vente maison): ${fmt(saleProceeds)}
-- Budget mensuel maximum (sans investir): ${fmt(naiveMonthly)}
-- À 65 ans arrive: héritage de ${fmt(profile.inheritanceAmount || 0)} + pension d'État ${fmt(profile.govMonthlyPension || 0)}/mois
-═══════════════════════════════════════
+"stocks": Compact table: allocation % | product | amount | monthly income. Total monthly passive income. 2 specific ETFs with ISIN. Platforms.
 
-Reply ONLY with valid JSON with exactly these 6 keys (HTML in each value using h4/p/ul/li/strong/table). ENGLISH ONLY. Be concise and use real numbers. NO markdown around the JSON.
+"realEstate": Sale calculation table (price − mortgage − fees = net). Bretagne savings vs renting. Best timing to sell.
 
-IMPORTANT NOTE ON BUDGET: The user wants to know if their STATED monthly budget of ${fmt(profile.monthlyRetirementExpenses||0)} is sustainable. Do NOT show "maximum possible monthly spend". Show: "with ${fmt(profile.monthlyRetirementExpenses||0)}/month, here is how the capital evolves and what is left at age ${profile.govRetirementAge}."
+"realism": 3 scenarios table (optimistic/realistic/pessimistic | monthly budget | capital at 65 | verdict). Score /10 with 2-line justification.`;
 
-"summary":
-- Total capital at age ${profile.targetRetirementAge}: house sale net ${fmt(saleProceeds)} + cash ${fmt(profile.currentSavings||0)} + stocks ${fmt(profile.stockPortfolio||0)} = TOTAL
-- Bridge period (${profile.targetRetirementAge}→${profile.govRetirementAge}): spending ${fmt(profile.monthlyRetirementExpenses||0)}/month = ${fmt((profile.monthlyRetirementExpenses||0)*12*gapYears)} total over ${gapYears} years. Show capital remaining at age ${profile.govRetirementAge} in 3 scenarios (no return / 3% return / 4% return)
-- At age ${profile.govRetirementAge}: inheritance ${fmt(profile.inheritanceAmount||0)} + state pension ${fmt(profile.govMonthlyPension||0)}/month arrives → total monthly income
-- Feasibility verdict in 1 sentence. 2 urgent actions.
+  // ── CALL 2: French retirement scenarios (govRetirement only) ──────────────────────────────
+  const prompt2 = `You are a French retirement law expert. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Use HTML tables. Max 400 words total.
 
-"firePlan": HTML table (Year|Age|Key Event|Capital Start|Income|Expenses|Capital End) — ${yearsToRetirement} years before retirement + ${gapYears} bridge years + 5 years after ${profile.govRetirementAge}. Show how ${fmt(saleProceeds)} capital depletes at ${fmt(profile.monthlyRetirementExpenses||0)}/month with 3% annual return. Show inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. Then: investment allocation of the ${fmt(saleProceeds)} (Livret A/PEA/fonds euros/ETF) + 3 key financial decisions.
+${ctx}
 
-"stocks": How to invest the ${fmt(saleProceeds)} from house sale: % safe bonds/fonds euros, % ETF PEA, % Livret A, % cash. Monthly income generated at 3-4% return. Specific ETFs recommended. Platforms (Boursorama, Fortuneo).
+Key calculations already done:
+- Quarters at retirement age ${profile.targetRetirementAge}: ${quartersAtRetirement} (missing: ${missingAtRetirement})
+- Decote if no action: ${decotePct}% → pension reduced to ${fmt(pensionReduced)}/month vs full ${fmt(profile.govMonthlyPension||0)}/month
+- Monthly pension loss: ${fmt((profile.govMonthlyPension||0) - pensionReduced)}/month for life
 
-"realEstate": House sale: ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − agent fees 3% = net proceeds. Retirement home ${profile.secondPropertyCity||'Bretagne'}: free housing saves ${fmt((profile.monthlyRetirementExpenses||0)*0.3)}/month vs renting. Property tax estimate.
+Return JSON with 1 key:
 
-"govRetirement": THE MOST IMPORTANT SECTION. The user wants a clear comparison of ALL options to maximize their French state pension. Current status: ${trimestresValides} quarters validated, ${trimestresRequis} required for full pension. Stopping work at ${profile.targetRetirementAge} means earning ${yearsToRetirement * 4} more quarters by then = ${trimestresValides + yearsToRetirement * 4} total quarters at retirement, leaving ${Math.max(0, trimestresRequis - (trimestresValides + yearsToRetirement * 4))} quarters missing.
+"govRetirement": Build ONE comparison table with columns: Scenario|Quarters at claim|Missing|Pension reduction|Monthly pension|Total strategy cost|20yr pension total|Verdict
 
-Build a COMPARISON TABLE of these 4 scenarios with columns: Scenario | Quarters at pension claim | Missing quarters | Pension reduction % | Monthly pension € | Total cost of strategy | Capital impact | Verdict:
+Row A — Do nothing, claim at ${profile.govRetirementAge}: ${quartersAtRetirement} quarters, ${missingAtRetirement} missing, -${decotePct}%, ${fmt(pensionReduced)}/mo, €0 cost, calculate 20yr total.
+Row B — Buy back 12 quarters (max, Art.L351-14-1): quarters=${quartersAtRetirement+12}, recalculate missing & decote, cost ~€4,000×12=€48,000 (tax deductible ~30% = net ~€33,600), calculate 20yr total. Breakeven age.
+Row C — CVV during bridge (${gapYears} yrs × 4 quarters = ${gapYears*4} quarters): quarters=${quartersAtRetirement+gapYears*4}, recalculate, cost ~€1,500/yr × ${gapYears} = ${fmt(1500*gapYears)}, calculate 20yr total. Breakeven age.
+Row D — Combine B+C: quarters=${quartersAtRetirement+12+gapYears*4}, likely reaches ${trimestresRequis} → 0% decote, full pension ${fmt(profile.govMonthlyPension||0)}/mo, total cost ~${fmt(48000+1500*gapYears)}, 20yr total.
+Row E — Wait until 67 (taux plein automatique): 0% decote guaranteed, ${fmt(profile.govMonthlyPension||0)}/mo, extra capital needed for 2 more years ${fmt((profile.monthlyRetirementExpenses||0)*24)}, 20yr total.
 
-SCENARIO A — "Do nothing: retire at ${profile.targetRetirementAge}, claim pension at ${profile.govRetirementAge}":
-- Quarters at claim: ${trimestresValides + yearsToRetirement * 4}
-- Missing: ${Math.max(0, trimestresRequis - (trimestresValides + yearsToRetirement * 4))} → decote ${(Math.max(0, trimestresRequis - (trimestresValides + yearsToRetirement * 4)) * 1.25).toFixed(1)}% on base pension
-- Monthly pension = stated ${fmt(profile.govMonthlyPension||0)} × (1 - decote%) — calculate the exact reduced amount
-- Cost: €0 but permanent pension reduction for life
-
-SCENARIO B — "Buy back quarters (rachat Art.L351-14-1) — max 12 quarters":
-- How many quarters can realistically be bought back (years of higher education + incomplete years)
-- Cost per quarter at age ${ageActuel}: approx €3,500–€5,000 depending on salary
-- Tax benefit: 100% deductible from taxable income → real net cost after tax savings
-- Quarters after buyback: previous total + bought quarters → remaining gap
-- Monthly pension after buyback
-- VERDICT: cost vs lifetime pension gain (breakeven age calculation)
-
-SCENARIO C — "CVV (Cotisation Volontaire Vieillesse) during bridge period ${profile.targetRetirementAge}→${profile.govRetirementAge}":
-- Validates up to 4 quarters/year while not working
-- Cost: approx €1,200–€2,000/year for ${gapYears} years = total cost
-- Total quarters earned: ${gapYears * 4} additional quarters
-- Monthly pension improvement
-- VERDICT: most cost-effective option?
-
-SCENARIO D — "Wait until age 67 (taux plein automatique)":
-- At 67, full pension is GUARANTEED regardless of quarters — zero decote no matter what
-- Monthly pension: ${fmt(profile.govMonthlyPension||0)}/month guaranteed (full rate)
-- BUT: 2 extra years without pension vs claiming at ${profile.govRetirementAge} = extra capital needed: ${fmt((profile.monthlyRetirementExpenses||0) * 24)} for 2 more years
-- Agirc-Arrco: no solidarity coefficient malus at 67
-- VERDICT: is waiting worth it financially?
-
-After the table: RECOMMENDATION — which scenario or combination gives the best result for this specific profile. Calculate the lifetime total pension (pension × 12 × 20 years) for each scenario to show which one maximizes total income. Include Agirc-Arrco solidarity coefficient impact (-10% if claim before 63, for 3 years).
-
-"realism": 3 scenarios (optimistic/realistic/pessimistic) with actual monthly budget figures. 3 main risks (health, real estate market, inheritance delay) with solutions. Feasibility score /10.`;
+After table: 2-sentence RECOMMENDATION on which scenario is best for this profile. Note Agirc-Arrco solidarity malus -10% if claim before 63.`;
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 8192,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
-    // Strip markdown fences if present
-    let cleaned = text.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-
-    // If JSON is truncated (stop_reason = max_tokens), try to close it gracefully
-    if (response.stop_reason === 'max_tokens') {
-      console.warn('⚠️ Response truncated at max_tokens — attempting repair');
-      // Close any open string, then close the JSON object
-      cleaned = cleaned.replace(/,\s*"[^"]*$/, ''); // remove last incomplete key
-      cleaned = cleaned.replace(/:\s*"[^"]*$/, ': "<truncated>"'); // close open value
-      if (!cleaned.endsWith('}')) cleaned += '}';
-    }
-
-    const parsed = JSON.parse(cleaned);
+    // Run both API calls in parallel
+    const [result1, result2] = await Promise.all([
+      callAI(client, prompt1),
+      callAI(client, prompt2),
+    ]);
 
     return {
-      realism:       parsed.realism       || '',
-      firePlan:      parsed.firePlan      || '',
-      stocks:        parsed.stocks        || '',
-      realEstate:    parsed.realEstate    || '',
-      govRetirement: parsed.govRetirement || '',
-      summary:       parsed.summary       || '',
+      summary:       result1.summary       || '',
+      firePlan:      result1.firePlan      || '',
+      stocks:        result1.stocks        || '',
+      realEstate:    result1.realEstate    || '',
+      realism:       result1.realism       || '',
+      govRetirement: result2.govRetirement || '',
       generatedAt:   new Date().toISOString(),
     };
   } catch (err: any) {
@@ -171,22 +138,14 @@ After the table: RECOMMENDATION — which scenario or combination gives the best
 
 function errorAnalysis(errMsg: string): AIAnalysis {
   const msg = `<p style="color:#e74c3c;padding:12px;"><strong>Analysis error:</strong> ${errMsg}</p>`;
-  return {
-    realism: msg, firePlan: msg, stocks: msg,
-    realEstate: msg, govRetirement: msg,
+  return { realism: msg, firePlan: msg, stocks: msg, realEstate: msg, govRetirement: msg,
     summary: `<p style="color:#e74c3c;"><strong>Error:</strong> ${errMsg}<br>Check server logs for details.</p>`,
-    generatedAt: new Date().toISOString(),
-  };
+    generatedAt: new Date().toISOString() };
 }
 
 function fallbackAnalysis(calc: FireResult): AIAnalysis {
-  const msg = `<p style="color:var(--muted);padding:12px;">
-    <strong>AI unavailable.</strong> Check <code>ANTHROPIC_API_KEY</code> in <code>.env</code>.
-  </p>`;
-  return {
-    realism: msg, firePlan: msg, stocks: msg,
-    realEstate: msg, govRetirement: msg,
+  const msg = `<p style="color:var(--muted);padding:12px;"><strong>AI unavailable.</strong> Check <code>ANTHROPIC_API_KEY</code> in <code>.env</code>.</p>`;
+  return { realism: msg, firePlan: msg, stocks: msg, realEstate: msg, govRetirement: msg,
     summary: `<p>API key not configured — add it to <code>.env</code> and click Analyze with AI.</p>`,
-    generatedAt: new Date().toISOString(),
-  };
+    generatedAt: new Date().toISOString() };
 }

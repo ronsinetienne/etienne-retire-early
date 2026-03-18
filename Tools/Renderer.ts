@@ -459,6 +459,42 @@ export function renderDashboard(
       </div>
     </div>
     <div class="card">
+      <div class="card-title">📈 Stock Portfolio Growth to Retirement</div>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;">
+        Formula: Current value × (1 + annual return)^years to retirement
+        &nbsp;=&nbsp; ${currency}${fmt(profile.stockPortfolio)} × (1 + ${(profile.estimatedReturn*100).toFixed(0)}%)^${Math.max(0,profile.targetRetirementAge-profile.age)} years
+        &nbsp;=&nbsp; <strong style="color:var(--green);">${currency}${fmt(profile.stockPortfolio * Math.pow(1+profile.estimatedReturn, Math.max(0,profile.targetRetirementAge-profile.age)))}</strong>
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Year</th><th>Age</th><th>Value (start)</th><th>Growth (${(profile.estimatedReturn*100).toFixed(0)}%)</th><th>Value (end)</th></tr></thead>
+        <tbody>
+          ${(() => {
+            const rows = [];
+            let v = profile.stockPortfolio;
+            const currentYear = new Date().getFullYear();
+            const yrs = Math.max(0, profile.targetRetirementAge - profile.age);
+            for(let y=1; y<=yrs; y++){
+              const growth = Math.round(v * profile.estimatedReturn);
+              const end = Math.round(v * (1+profile.estimatedReturn));
+              rows.push(`<tr>
+                <td>${currentYear+y-1}</td>
+                <td>${profile.age+y-1}</td>
+                <td>${currency}${fmt(v)}</td>
+                <td style="color:var(--green);">+${currency}${fmt(growth)}</td>
+                <td><strong>${currency}${fmt(end)}</strong></td>
+              </tr>`);
+              v = end;
+            }
+            return rows.join('');
+          })()}
+          <tr style="background:var(--card-bg);font-weight:700;">
+            <td colspan="4" style="color:var(--fire);">🎯 At retirement (age ${profile.targetRetirementAge})</td>
+            <td style="color:var(--green);">${currency}${fmt(profile.stockPortfolio * Math.pow(1+profile.estimatedReturn, Math.max(0,profile.targetRetirementAge-profile.age)))}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
       <div class="card-title">🤖 AI Stock Market Strategy</div>
       <div class="ai-section" id="ai-stocks">${analysis?.stocks || '<p style="color:var(--muted);">Click "Analyze with AI" above to get stock market recommendations.</p>'}</div>
     </div>

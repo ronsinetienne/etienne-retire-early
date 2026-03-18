@@ -241,6 +241,16 @@ export function renderDashboard(
         <span id="analyze-status" style="color:var(--muted);font-size:12px;"></span>
       </div>
     </form>
+
+    <!-- AI Response Zone -->
+    <div id="ai-response-zone" style="display:${analysis?.summary ? 'block' : 'none'};margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-size:18px;">🤖</span>
+        <span style="font-weight:600;color:var(--fire);">AI Analysis</span>
+        <span id="ai-response-date" style="color:var(--muted);font-size:11px;margin-left:auto;">${analysis?.generatedAt ? 'Last updated: ' + new Date(analysis.generatedAt).toLocaleString('en-US') : ''}</span>
+      </div>
+      <div id="ai-response-text" class="ai-section" style="line-height:1.8;">${analysis?.summary || ''}</div>
+    </div>
   </div>
 
   <!-- ═══ FIRE SUMMARY STRIP ═══ -->
@@ -774,7 +784,18 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     document.getElementById('ai-stocks').innerHTML = data.stocks || '';
     document.getElementById('ai-real-estate').innerHTML = data.realEstate || '';
     document.getElementById('ai-gov-retirement').innerHTML = data.govRetirement || '';
+
+    // Show AI response zone below the form
     if (data.summary) {
+      const zone = document.getElementById('ai-response-zone');
+      const text = document.getElementById('ai-response-text');
+      const dateEl = document.getElementById('ai-response-date');
+      text.innerHTML = data.summary;
+      dateEl.textContent = 'Generated: ' + new Date().toLocaleString('en-US');
+      zone.style.display = 'block';
+      zone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      // Also update realism tab summary banner
       const banner = document.querySelector('.summary-banner');
       if (banner) { banner.querySelector('.ai-section').innerHTML = data.summary; }
       else {

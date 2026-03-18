@@ -226,6 +226,26 @@ export function renderDashboard(
         </div>
 
         <div class="form-group full" style="margin-top:8px;">
+          <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">🧮 Precise French Pension Inputs <span style="font-weight:400;font-size:0.8rem;color:var(--muted)">(from your relevé de carrière on info-retraite.fr)</span></div>
+        </div>
+        <div class="form-group">
+          <label>Birth Year</label>
+          <input type="number" name="birthYear" value="${profile.birthYear || (new Date().getFullYear() - profile.age)}" min="1950" max="1990">
+        </div>
+        <div class="form-group">
+          <label>Average Annual Salary — SAM (best 25 yrs, gross) ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="salaireMoyen" value="${profile.salaireMoyen || 0}" min="0" placeholder="e.g. 45000"></div>
+        </div>
+        <div class="form-group">
+          <label>Agirc-Arrco Points Accumulated (from relevé)</label>
+          <input type="number" name="agircPoints" value="${profile.agircPoints || 0}" min="0" placeholder="e.g. 85000">
+        </div>
+        <div class="form-group">
+          <label>New Agirc-Arrco Points per Year (current)</label>
+          <input type="number" name="agircPointsPerYear" value="${profile.agircPointsPerYear || 0}" min="0" placeholder="e.g. 3500">
+        </div>
+
+        <div class="form-group full" style="margin-top:8px;">
           <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">🏠 Property to SELL at Retirement (primary)</div>
         </div>
         <div class="form-group">
@@ -628,6 +648,10 @@ function updateLive() {
     secondPropertyValue: +fd.get('secondPropertyValue') || 0,
     secondPropertyCity: fd.get('secondPropertyCity') || '',
     giftToChildren: +fd.get('giftToChildren') || 0,
+    birthYear: +fd.get('birthYear') || 0,
+    salaireMoyen: +fd.get('salaireMoyen') || 0,
+    agircPoints: +fd.get('agircPoints') || 0,
+    agircPointsPerYear: +fd.get('agircPointsPerYear') || 0,
     inheritanceAmount: +fd.get('inheritanceAmount') || 0,
     inheritanceAge: +fd.get('inheritanceAge') || 65,
     targetRetirementAge: +fd.get('targetRetirementAge'),

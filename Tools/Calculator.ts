@@ -23,9 +23,14 @@ export interface UserProfile {
   notes: string;
   // Government retirement
   govRetirementAge: number;       // legal retirement age (e.g. 64 in France)
-  govMonthlyPension: number;      // estimated monthly state pension
+  govMonthlyPension: number;      // rough estimate (overridden by calculated value if SAM provided)
   contributionYears: number;      // years of contributions so far
-  targetContributionYears: number;// years required for full pension (e.g. 42 in France)
+  targetContributionYears: number;// years required for full pension (e.g. 43 in France)
+  // Precise pension inputs (French system)
+  birthYear: number;              // to determine exact trimestres requis
+  salaireMoyen: number;           // SAM: average annual salary over best 25 years (gross)
+  agircPoints: number;            // Agirc-Arrco points from relevé de carrière
+  agircPointsPerYear: number;     // estimated new points earned per year (if still working)
 }
 
 export interface FireResult {
@@ -46,11 +51,20 @@ export interface FireResult {
   projectionData: Array<{ year: number; value: number; fireNumber: number }>;
   milestones: Array<{ label: string; year: number; value: number; reached: boolean }>;
   // Government retirement
-  govGap: number;                 // years between FIRE target and legal retirement
-  govPensionAnnual: number;       // annual state pension
-  fireNumberWithPension: number;  // FIRE number reduced thanks to pension
-  contributionProgress: number;   // % of required contribution years completed
-  yearsToFullPension: number;     // remaining years to reach full pension entitlement
+  govGap: number;
+  govPensionAnnual: number;
+  fireNumberWithPension: number;
+  contributionProgress: number;
+  yearsToFullPension: number;
+  // Precise French pension breakdown
+  trimestresRequis: number;
+  quartersAtRetirement: number;
+  missingQuarters: number;
+  decoteRate: number;
+  pensionBaseMonthly: number;
+  pensionAgircMonthly: number;
+  calculatedPension: number;
+  agircPointsAtRetirement: number;
 }
 
 export function calculate(profile: UserProfile): FireResult {
@@ -129,8 +143,47 @@ export function calculate(profile: UserProfile): FireResult {
     m.year = currentYear + y;
   }
 
+  // ── French pension precise calculation ────────────────────────────────────────
+  const yearsToRetirement = Math.max(0, profile.targetRetirementAge - profile.age);
+  const quartersValidated  = (profile.contributionYears || 0) * 4;
+  const quartersAtRetirement = quartersValidated + yearsToRetirement * 4;
+
+  // Trimestres requis based on birth year (French law 2023 reform)
+  const birthYear = profile.birthYear || (new Date().getFullYear() - profile.age);
+  let trimestresRequis = 172; // default for born 1973+
+  if (birthYear <= 1957)      trimestresRequis = 160;
+  else if (birthYear <= 1958) trimestresRequis = 161;
+  else if (birthYear <= 1959) trimestresRequis = 162;
+  else if (birthYear <= 1960) trimestresRequis = 163;
+  else if (birthYear <= 1961) trimestresRequis = 165;
+  else if (birthYear <= 1962) trimestresRequis = 166;
+  else if (birthYear <= 1963) trimestresRequis = 167;
+  else if (birthYear <= 1964) trimestresRequis = 168;
+  else if (birthYear <= 1965) trimestresRequis = 169;
+  else if (birthYear <= 1966) trimestresRequis = 170;
+  else if (birthYear <= 1972) trimestresRequis = 171;
+
+  // Retraite de base (CNAV): SAM × 50% × min(quartersAtRetirement, trimestresRequis) / trimestresRequis
+  const SAM = profile.salaireMoyen || 0;
+  const missingQuarters = Math.max(0, trimestresRequis - quartersAtRetirement);
+  const decoteRate = Math.min(0.25, missingQuarters * 0.0125); // max 25% decote
+  const tauxBase = 0.50 * (1 - decoteRate);
+  const pensionBaseMonthly = SAM > 0
+    ? Math.round((SAM / 12) * tauxBase * Math.min(quartersAtRetirement, trimestresRequis) / trimestresRequis)
+    : 0;
+
+  // Retraite complémentaire Agirc-Arrco
+  const VALEUR_POINT = 1.4801; // €/point (2024 value)
+  const agircPointsAtRetirement = (profile.agircPoints || 0) + (profile.agircPointsPerYear || 0) * yearsToRetirement;
+  const pensionAgircMonthly = Math.round((agircPointsAtRetirement * VALEUR_POINT) / 12);
+
+  // Total calculated pension (use manual estimate if SAM not provided)
+  const calculatedPension = SAM > 0
+    ? pensionBaseMonthly + pensionAgircMonthly
+    : profile.govMonthlyPension;
+
   // Government retirement calculations
-  const govPensionAnnual = profile.govMonthlyPension * 12;
+  const govPensionAnnual = calculatedPension * 12;
   const govGap = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
   // FIRE number accounting for future pension (pension reduces expenses in retirement)
   const netExpWithPension = Math.max(0, annualRetirementExpenses - annualRentalIncome - govPensionAnnual);
@@ -162,5 +215,13 @@ export function calculate(profile: UserProfile): FireResult {
     fireNumberWithPension,
     contributionProgress,
     yearsToFullPension,
+    trimestresRequis,
+    quartersAtRetirement,
+    missingQuarters,
+    decoteRate,
+    pensionBaseMonthly,
+    pensionAgircMonthly,
+    calculatedPension,
+    agircPointsAtRetirement,
   };
 }

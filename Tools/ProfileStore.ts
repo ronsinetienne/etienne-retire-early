@@ -30,6 +30,10 @@ const defaultProfile: UserProfile = {
   govMonthlyPension: 1800,
   contributionYears: 28,
   targetContributionYears: 43,
+  birthYear: 1974,
+  salaireMoyen: 0,
+  agircPoints: 0,
+  agircPointsPerYear: 0,
 };
 
 function profilePath(): string {

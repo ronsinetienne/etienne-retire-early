@@ -96,7 +96,39 @@ IMPORTANT NOTE ON BUDGET: The user wants to know if their STATED monthly budget 
 
 "realEstate": House sale: ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − agent fees 3% = net proceeds. Retirement home ${profile.secondPropertyCity||'Bretagne'}: free housing saves ${fmt((profile.monthlyRetirementExpenses||0)*0.3)}/month vs renting. Property tax estimate.
 
-"govRetirement": MOST IMPORTANT SECTION. Keep it SHORT and actionable. A) Status: ${trimestresValides}/${trimestresRequis} quarters, ${trimestresManquants} missing, penalty ${(trimestresManquants*1.25).toFixed(1)}%, estimated pension with vs without penalty. B) 3 solutions: (1) Buy back quarters Art.L351-14-1: cost/quarter at age ${ageActuel}, tax deductible, CNAV procedure; (2) Voluntary contribution CVV form S3705: annual cost, quarters earned over ${gapYears} years; (3) Micro-entrepreneur: min €1,500/yr CA to validate quarters. C) Agirc-Arrco solidarity coefficient -10%. D) Short action table: Action|Cost|Quarters|Priority. E) Pension simulation: without vs with optimization.
+"govRetirement": THE MOST IMPORTANT SECTION. The user wants a clear comparison of ALL options to maximize their French state pension. Current status: ${trimestresValides} quarters validated, ${trimestresRequis} required for full pension. Stopping work at ${profile.targetRetirementAge} means earning ${yearsToRetirement * 4} more quarters by then = ${trimestresValides + yearsToRetirement * 4} total quarters at retirement, leaving ${Math.max(0, trimestresRequis - (trimestresValides + yearsToRetirement * 4))} quarters missing.
+
+Build a COMPARISON TABLE of these 4 scenarios with columns: Scenario | Quarters at pension claim | Missing quarters | Pension reduction % | Monthly pension € | Total cost of strategy | Capital impact | Verdict:
+
+SCENARIO A — "Do nothing: retire at ${profile.targetRetirementAge}, claim pension at ${profile.govRetirementAge}":
+- Quarters at claim: ${trimestresValides + yearsToRetirement * 4}
+- Missing: ${Math.max(0, trimestresRequis - (trimestresValides + yearsToRetirement * 4))} → decote ${(Math.max(0, trimestresRequis - (trimestresValides + yearsToRetirement * 4)) * 1.25).toFixed(1)}% on base pension
+- Monthly pension = stated ${fmt(profile.govMonthlyPension||0)} × (1 - decote%) — calculate the exact reduced amount
+- Cost: €0 but permanent pension reduction for life
+
+SCENARIO B — "Buy back quarters (rachat Art.L351-14-1) — max 12 quarters":
+- How many quarters can realistically be bought back (years of higher education + incomplete years)
+- Cost per quarter at age ${ageActuel}: approx €3,500–€5,000 depending on salary
+- Tax benefit: 100% deductible from taxable income → real net cost after tax savings
+- Quarters after buyback: previous total + bought quarters → remaining gap
+- Monthly pension after buyback
+- VERDICT: cost vs lifetime pension gain (breakeven age calculation)
+
+SCENARIO C — "CVV (Cotisation Volontaire Vieillesse) during bridge period ${profile.targetRetirementAge}→${profile.govRetirementAge}":
+- Validates up to 4 quarters/year while not working
+- Cost: approx €1,200–€2,000/year for ${gapYears} years = total cost
+- Total quarters earned: ${gapYears * 4} additional quarters
+- Monthly pension improvement
+- VERDICT: most cost-effective option?
+
+SCENARIO D — "Wait until age 67 (taux plein automatique)":
+- At 67, full pension is GUARANTEED regardless of quarters — zero decote no matter what
+- Monthly pension: ${fmt(profile.govMonthlyPension||0)}/month guaranteed (full rate)
+- BUT: 2 extra years without pension vs claiming at ${profile.govRetirementAge} = extra capital needed: ${fmt((profile.monthlyRetirementExpenses||0) * 24)} for 2 more years
+- Agirc-Arrco: no solidarity coefficient malus at 67
+- VERDICT: is waiting worth it financially?
+
+After the table: RECOMMENDATION — which scenario or combination gives the best result for this specific profile. Calculate the lifetime total pension (pension × 12 × 20 years) for each scenario to show which one maximizes total income. Include Agirc-Arrco solidarity coefficient impact (-10% if claim before 63, for 3 years).
 
 "realism": 3 scenarios (optimistic/realistic/pessimistic) with actual monthly budget figures. 3 main risks (health, real estate market, inheritance delay) with solutions. Feasibility score /10.`;
 

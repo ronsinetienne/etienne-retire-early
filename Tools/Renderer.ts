@@ -327,7 +327,7 @@ export function renderDashboard(
   <!-- ═══ TABS ═══ -->
   <div class="tabs">
     <button class="tab-btn active" data-tab="realism">🎯 Realism</button>
-    <button class="tab-btn" data-tab="fire-plan">📊 FIRE Plan</button>
+    <button class="tab-btn" data-tab="fire-plan">📊 Action Plan</button>
     <button class="tab-btn" data-tab="stocks">📈 Stock Market</button>
     <button class="tab-btn" data-tab="real-estate">🏠 Real Estate</button>
     <button class="tab-btn" data-tab="gov-retirement">🏛️ Gov. Retirement</button>

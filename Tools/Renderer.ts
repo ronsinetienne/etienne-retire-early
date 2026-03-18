@@ -234,7 +234,14 @@ export function renderDashboard(
         </div>
         <div class="form-group">
           <label>Average Annual Salary — SAM (best 25 yrs, gross) ${currency}</label>
-          <div class="input-prefix"><span>${currency}</span><input type="number" name="salaireMoyen" value="${profile.salaireMoyen || 0}" min="0" placeholder="e.g. 45000"></div>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="salaireMoyen" value="${profile.salaireMoyen || 0}" min="0" placeholder="e.g. 42903"></div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;line-height:1.4;">
+            ⚠️ <strong>PASS cap applies:</strong> The CNAV only counts salary up to the annual PASS ceiling (~€46,368 in 2024).
+            If your salary always exceeded the PASS (as most high earners), enter the <strong>average PASS across your 25 best years</strong> — not your actual salary.
+            Example: if your career spans 2011–2035, the capped average = <strong>~€42,903</strong>
+            (PASS grew from €35,352 in 2011 → €47,000 est. 2035, averaging €43k).
+            Your actual salary above the PASS is covered by <strong>Agirc-Arrco points</strong> instead.
+          </div>
         </div>
         <div class="form-group">
           <label>Agirc-Arrco Points Accumulated (from relevé)</label>

@@ -16,6 +16,8 @@ const defaultProfile: UserProfile = {
   // Maison de retraite (ex: Bretagne) — sans crédit
   secondPropertyValue: 300000,
   secondPropertyCity: 'Bretagne',
+  // Gift to children at retirement
+  giftToChildren: 0,
   // Héritage
   inheritanceAmount: 500000,
   inheritanceAge: 65,

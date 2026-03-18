@@ -11,6 +11,8 @@ export interface UserProfile {
   // Second property (retirement home — no mortgage)
   secondPropertyValue: number;
   secondPropertyCity: string;
+  // Gift to children from house sale
+  giftToChildren: number;
   // Inheritance
   inheritanceAmount: number;
   inheritanceAge: number;         // age at which inheritance is received

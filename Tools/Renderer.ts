@@ -250,6 +250,13 @@ export function renderDashboard(
         </div>
 
         <div class="form-group full" style="margin-top:8px;">
+          <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">🎁 Gift to Children (from house sale)</div>
+        </div>
+        <div class="form-group">
+          <label>Amount given to children ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="giftToChildren" value="${profile.giftToChildren || 0}" min="0"></div>
+        </div>
+        <div class="form-group full" style="margin-top:8px;">
           <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">💰 Expected Inheritance</div>
         </div>
         <div class="form-group">
@@ -620,6 +627,7 @@ function updateLive() {
     monthlyRentalIncome: +fd.get('monthlyRentalIncome'),
     secondPropertyValue: +fd.get('secondPropertyValue') || 0,
     secondPropertyCity: fd.get('secondPropertyCity') || '',
+    giftToChildren: +fd.get('giftToChildren') || 0,
     inheritanceAmount: +fd.get('inheritanceAmount') || 0,
     inheritanceAge: +fd.get('inheritanceAge') || 65,
     targetRetirementAge: +fd.get('targetRetirementAge'),

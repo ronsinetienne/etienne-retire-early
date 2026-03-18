@@ -60,7 +60,9 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
 
   const gapYears        = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
   const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
-  const saleProceeds    = saleNet - Math.round(saleNet * 0.03);
+  const saleProceedsFull = saleNet - Math.round(saleNet * 0.03);
+  const giftToKids      = profile.giftToChildren || 0;
+  const saleProceeds    = saleProceedsFull - giftToKids;  // net after gift to children
   const trimestresValides   = (profile.contributionYears||0) * 4;
   const trimestresRequis    = (profile.targetContributionYears||43) * 4;
   const ageActuel       = profile.age || 51;
@@ -71,29 +73,31 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   const pensionReduced  = Math.round((profile.govMonthlyPension||0) * (1 - missingAtRetirement * 0.0125));
   const totalCapital    = saleProceeds + (profile.currentSavings||0) + (profile.stockPortfolio||0);
   const bridgeTotal     = (profile.monthlyRetirementExpenses||0) * 12 * gapYears;
-  const capitalAt65     = Math.round(totalCapital - bridgeTotal + totalCapital * 0.03 * gapYears * 0.5);
+  const capitalAtPension = Math.round(totalCapital - bridgeTotal + totalCapital * 0.03 * gapYears * 0.5);
 
   const ctx = buildContext(profile, saleProceeds, gapYears, trimestresValides, trimestresRequis, yearsToRetirement, ageActuel);
+  const giftNote = giftToKids > 0 ? `IMPORTANT: User gives ${fmt(giftToKids)} to children from house sale. Net capital after gift: ${fmt(saleProceeds)} (NOT ${fmt(saleProceedsFull)}).` : '';
 
   // ── CALL 1: Financial plan (summary + firePlan + stocks + realEstate + realism) ─────────
-  const prompt1 = `You are a retirement financial advisor. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Use HTML (h4,p,ul,li,strong,table,tr,td,th) in values. Be concise — max 300 words per section.
+  const prompt1 = `You are a retirement financial advisor. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Each JSON value MUST be a plain HTML string, never a nested object.
 
 ${ctx}
+${giftNote}
 
-Return JSON with these 5 keys:
+Return JSON with exactly these 5 keys (each value = plain HTML string):
 
-"summary": 3 things: (1) Total capital at ${profile.targetRetirementAge}: ${fmt(totalCapital)}. Budget ${fmt(profile.monthlyRetirementExpenses||0)}/month × ${gapYears*12} months = ${fmt(bridgeTotal)} needed. Capital remaining at ${profile.govRetirementAge}: ~${fmt(capitalAt65)} + inheritance ${fmt(profile.inheritanceAmount||0)} = ${fmt(capitalAt65+(profile.inheritanceAmount||0))}. Show as 3-row table (conservative/moderate/optimistic). (2) Monthly income at ${profile.govRetirementAge}: pension + investment returns. (3) 2 urgent actions in next 6 months.
+"summary": (1) Capital breakdown table at age ${profile.targetRetirementAge}: house sale gross ${fmt(saleProceedsFull)} − gift to children ${fmt(giftToKids)} = net ${fmt(saleProceeds)}, + stocks ${fmt(profile.stockPortfolio||0)} + cash ${fmt(profile.currentSavings||0)} = TOTAL ${fmt(totalCapital)}. (2) Bridge period table: ${fmt(profile.monthlyRetirementExpenses||0)}/month × ${gapYears*12}mo = ${fmt(bridgeTotal)} total spend. Show capital at ${profile.govRetirementAge} in 3 rows (0%/3%/4% return). (3) At ${profile.govRetirementAge}: + inheritance ${fmt(profile.inheritanceAmount||0)} + pension. (4) 2 urgent actions.
 
-"firePlan": Year-by-year table (Year|Age|Event|Capital Start|Expenses|Capital End). Cover: ${yearsToRetirement} yrs pre-retirement + ${gapYears} bridge years + 3 yrs post-${profile.govRetirementAge}. Show capital depleting at ${fmt(profile.monthlyRetirementExpenses||0)}/month with 3% return. Mark inheritance at age ${profile.inheritanceAge||65}. Then: 3-line investment allocation for the ${fmt(saleProceeds)}.
+"firePlan": Year-by-year table (Year|Age|Event|Capital Start|Expenses|Capital End). ${yearsToRetirement} pre-retirement yrs + ${gapYears} bridge yrs + 3 post-pension yrs. Capital starts at ${fmt(totalCapital)}, depletes at ${fmt(profile.monthlyRetirementExpenses||0)}/month with 3% return. Inheritance ${fmt(profile.inheritanceAmount||0)} arrives at age ${profile.inheritanceAge||65}. After table: 3-line investment split for ${fmt(saleProceeds)}.
 
-"stocks": Compact table: allocation % | product | amount | monthly income. Total monthly passive income. 2 specific ETFs with ISIN. Platforms.
+"stocks": Table: allocation%|product|amount|monthly income. ETFs with ISIN. Platforms.
 
-"realEstate": Sale calculation table (price − mortgage − fees = net). Bretagne savings vs renting. Best timing to sell.
+"realEstate": Table: sale price ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − fees 3% − gift to children ${fmt(giftToKids)} = net ${fmt(saleProceeds)}. Bretagne free housing saving vs rent. Best timing.
 
-"realism": 3 scenarios table (optimistic/realistic/pessimistic | monthly budget | capital at 65 | verdict). Score /10 with 2-line justification.`;
+"realism": 3-row table (optimistic/realistic/pessimistic|monthly budget|capital at ${profile.govRetirementAge}|verdict). Score /10.`;
 
   // ── CALL 2: French retirement scenarios (govRetirement only) ──────────────────────────────
-  const prompt2 = `You are a French retirement law expert. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Use HTML tables. Max 400 words total.
+  const prompt2 = `You are a French retirement law expert. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Use HTML tables. Max 400 words total. The JSON value for "govRetirement" MUST be a plain HTML string, NOT a nested object.
 
 ${ctx}
 
@@ -121,13 +125,28 @@ After table: 2-sentence RECOMMENDATION on which scenario is best for this profil
       callAI(client, prompt2),
     ]);
 
+    console.log('✅ Call1 keys:', Object.keys(result1));
+    console.log('✅ Call2 keys:', Object.keys(result2));
+    console.log('✅ summary type:', typeof result1.summary, '— first 80 chars:', String(result1.summary).slice(0,80));
+    console.log('✅ govRetirement type:', typeof result2.govRetirement, '— first 80 chars:', String(result2.govRetirement).slice(0,80));
+
+    // Flatten nested objects if AI wrapped values inside another object
+    const flatten = (v: any): string => {
+      if (typeof v === 'string') return v;
+      if (!v) return '';
+      // If AI returned an object, join all string values
+      const vals = Object.values(v).filter(x => typeof x === 'string') as string[];
+      if (vals.length > 0) return vals.join('\n');
+      return JSON.stringify(v);
+    };
+
     return {
-      summary:       result1.summary       || '',
-      firePlan:      result1.firePlan      || '',
-      stocks:        result1.stocks        || '',
-      realEstate:    result1.realEstate    || '',
-      realism:       result1.realism       || '',
-      govRetirement: result2.govRetirement || '',
+      summary:       flatten(result1.summary),
+      firePlan:      flatten(result1.firePlan),
+      stocks:        flatten(result1.stocks),
+      realEstate:    flatten(result1.realEstate),
+      realism:       flatten(result1.realism),
+      govRetirement: flatten(result2.govRetirement),
       generatedAt:   new Date().toISOString(),
     };
   } catch (err: any) {

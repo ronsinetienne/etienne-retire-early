@@ -12,8 +12,8 @@ export interface AIAnalysis {
   generatedAt: string;
 }
 
-function fmt(n: number, currency = '€'): string {
-  return `${currency}${Math.round(n).toLocaleString('en-US')}`;
+function fmt(n: number): string {
+  return `€${Math.round(n).toLocaleString('en-US')}`;
 }
 
 export async function analyzeProfile(profile: UserProfile, calc: FireResult): Promise<AIAnalysis> {
@@ -24,61 +24,111 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
 
   const client = new Anthropic({ apiKey });
 
-  const prompt = `You are an expert FIRE (Financial Independence, Retire Early) advisor.
-Analyze this user's financial profile and provide personalized, actionable advice.
+  const gapYears = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
+  const bridgeCost = profile.monthlyRetirementExpenses * 12 * gapYears;
+  const trimestresManquants = Math.max(0, profile.targetContributionYears * 4 - profile.contributionYears * 4);
 
-## User Profile
-- Age: ${profile.age}
-- Monthly net income: ${fmt(profile.monthlyIncome)}
-- Monthly expenses: ${fmt(profile.monthlyExpenses)}
-- Monthly surplus: ${fmt(profile.monthlyIncome - profile.monthlyExpenses)}
-- Current savings (cash/bonds): ${fmt(profile.currentSavings)}
-- Stock portfolio: ${fmt(profile.stockPortfolio)}
-- Real estate value: ${fmt(profile.realEstateValue)}
-- Mortgage remaining: ${fmt(profile.mortgageRemaining)}
-- Monthly rental income: ${fmt(profile.monthlyRentalIncome)}
-- Legal retirement age: ${profile.govRetirementAge}
-- Estimated monthly state pension: ${fmt(profile.govMonthlyPension)}
-- Contribution years so far: ${profile.contributionYears} / ${profile.targetContributionYears} required
-- Target retirement age: ${profile.targetRetirementAge}
-- Desired monthly retirement income: ${fmt(profile.monthlyRetirementExpenses)}
-- Assumed annual return: ${(profile.estimatedReturn * 100).toFixed(1)}%
-- Assumed inflation: ${(profile.inflation * 100).toFixed(1)}%
-- User notes: "${profile.notes}"
+  const prompt = `Tu es un conseiller financier expert en retraite anticipée (FIRE) et en droit de la retraite française.
+Tu dois analyser en profondeur le profil de cet utilisateur et lui fournir des conseils TRÈS détaillés, personnalisés, et actionnables.
 
-## Current FIRE Calculations
-- FIRE Number (without pension): ${fmt(calc.fireNumber)}
-- FIRE Number (with state pension): ${fmt(calc.fireNumberWithPension)}
-- Gap between FIRE target and legal retirement: ${calc.govGap} years
-- Lean FIRE: ${fmt(calc.leanFireNumber)} | Fat FIRE: ${fmt(calc.fatFireNumber)}
-- Current investable assets: ${fmt(calc.totalAssets)}
-- Net worth: ${fmt(calc.totalNetWorth)}
-- Progress toward FIRE: ${calc.progressPercent.toFixed(1)}%
-- Estimated years to FIRE: ${calc.yearsToFire} (age ${calc.fireAge})
-- Savings rate: ${calc.savingsRate.toFixed(1)}%
-- Monthly shortfall to hit target age: ${fmt(calc.monthlyShortfall)}
+IMPORTANT: L'utilisateur a écrit ce texte dans la zone de notes — lis-le attentivement et base toute ton analyse dessus:
+"""
+${profile.notes || '(aucune note fournie)'}
+"""
 
-Provide a JSON response with exactly these 5 keys. Each value is an HTML snippet (no <html>/<body> tags):
+## Profil financier complet
+- Âge actuel: ${profile.age} ans
+- Revenu mensuel net: ${fmt(profile.monthlyIncome)}
+- Dépenses mensuelles actuelles: ${fmt(profile.monthlyExpenses)}
+- Épargne disponible (cash/livrets): ${fmt(profile.currentSavings)}
+- Portefeuille boursier: ${fmt(profile.stockPortfolio)}
+- Valeur immobilier: ${fmt(profile.realEstateValue)}
+- Crédit immobilier restant: ${fmt(profile.mortgageRemaining)}
+- Revenu locatif mensuel: ${fmt(profile.monthlyRentalIncome)}
 
-1. "realism" — Honest feasibility assessment. Is the target age realistic? What's the biggest gap? What score (1-10) and why?
-2. "firePlan" — Step-by-step action plan with specific milestones, contribution amounts, and timeline.
-3. "stocks" — Portfolio allocation recommendation with specific ETFs (e.g., MSCI World, S&P 500, bonds), percentages, and rationale based on age and goal.
-4. "realEstate" — Real estate strategy: should they buy, keep renting, invest in REITs, rental property? Specific advice.
-5. "govRetirement" — Government/state pension strategy: bridge period between FIRE and legal retirement age, how to optimize pension entitlements, impact on FIRE number, risks of early retirement on pension rights.
-6. "summary" — Executive summary in 3-4 sentences.
+## Objectifs retraite
+- Âge de retraite souhaité (FIRE): ${profile.targetRetirementAge} ans
+- Âge légal de retraite (gouvernement): ${profile.govRetirementAge} ans
+- Écart à couvrir: ${gapYears} ans entre retraite anticipée et retraite légale
+- Budget mensuel souhaité en retraite: ${fmt(profile.monthlyRetirementExpenses)}
+- Coût total de la période "pont": ${fmt(bridgeCost)} (sans rendement)
+- Pension d'État estimée: ${fmt(profile.govMonthlyPension)}/mois
+- Trimestres validés: ${profile.contributionYears * 4} / ${profile.targetContributionYears * 4} requis
+- Trimestres manquants: ${trimestresManquants}
 
-Use <strong>, <ul>, <li>, <p>, <h4> tags. Be specific, data-driven, and actionable.
-Respond ONLY with valid JSON. No markdown fences.`;
+## Calculs FIRE actuels
+- Nombre FIRE (sans pension): ${fmt(calc.fireNumber)}
+- Nombre FIRE (avec pension): ${fmt(calc.fireNumberWithPension)}
+- Actifs investissables actuels: ${fmt(calc.totalAssets)}
+- Patrimoine net total: ${fmt(calc.totalNetWorth)}
+- Progression vers FIRE: ${calc.progressPercent.toFixed(1)}%
+- Années estimées avant FIRE: ${calc.yearsToFire} (âge ${calc.fireAge})
+- Taux d'épargne: ${calc.savingsRate.toFixed(1)}%
+- Manque mensuel pour atteindre l'objectif: ${fmt(calc.monthlyShortfall)}
+
+---
+
+Fournis une réponse JSON avec exactement ces 6 clés. Chaque valeur est un LONG snippet HTML riche (utilise <h4>, <p>, <ul>, <li>, <strong>, <table>, <tr>, <td>).
+Chaque section doit faire au minimum 400 mots. Sois très spécifique, chiffré, et actionnable.
+
+=== 1. "realism" ===
+Analyse honnête et détaillée de faisabilité. Score /10 justifié. Ce qui est réaliste, ce qui ne l'est pas, les 3 plus grands obstacles, et comment les surmonter concrètement. Prends en compte les notes de l'utilisateur.
+
+=== 2. "firePlan" ===
+Plan d'action détaillé année par année jusqu'à la retraite. Montants précis à épargner chaque mois, jalons (25%, CoastFIRE, 50%, FIRE), ajustements selon les notes de l'utilisateur.
+
+=== 3. "stocks" ===
+Allocation boursière précise avec ETFs spécifiques (IWDA, MSCI World, S&P500, obligations, etc.), pourcentages, et rationale détaillé selon l'âge et le profil. Inclure les plateformes recommandées (PEA, CTO, etc.).
+
+=== 4. "realEstate" ===
+Stratégie immobilière personnalisée: achat/location/investissement locatif/SCPI/REITs. Calculs de rendement, impact sur le nombre FIRE, conseils fiscaux français (SCI, LMNP, etc.).
+
+=== 5. "govRetirement" ===
+SECTION LA PLUS IMPORTANTE — Analyse ULTRA-DÉTAILLÉE du système de retraite français pour quelqu'un qui veut partir à ${profile.targetRetirementAge} ans alors que l'âge légal est ${profile.govRetirementAge} ans:
+
+A) SITUATION ACTUELLE:
+- Calcul précis des trimestres validés vs requis (${profile.contributionYears * 4} / ${profile.targetContributionYears * 4})
+- Impact d'un départ anticipé sur la pension (décote, nombre de trimestres manquants)
+- Estimation de la pension avec et sans décote
+
+B) PÉRIODE PONT (${profile.targetRetirementAge} → ${profile.govRetirementAge} ans = ${gapYears} ans):
+- Comment vivre financièrement pendant ces ${gapYears} ans sans revenus du travail
+- Calcul précis du capital nécessaire pour couvrir cette période: ${fmt(bridgeCost)} minimum
+- Stratégie de décaissement optimale (ordre des comptes à utiliser: PER, PEA, CTO, livrets)
+- Droits aux allocations chômage éventuels
+
+C) CONTINUER À ACQUÉRIR DES DROITS RETRAITE APRÈS L'ARRÊT DE TRAVAIL:
+- **Rachat de trimestres (Art. L351-14-1 CSS)**: explique en détail comment racheter jusqu'à 12 trimestres (années d'études supérieures, années incomplètes). Donne les coûts indicatifs selon l'âge (coût d'un trimestre racheté à ${profile.age} ans vs plus tard), la déductibilité fiscale (déductible des revenus imposables), et la procédure (demande CNAV/MSA).
+- **Cotisation volontaire à l'assurance vieillesse (CVV)**: comment cotiser volontairement à la Sécurité Sociale après l'arrêt du travail pour continuer à valider des trimestres. Montants, conditions, plafonds.
+- **Retraite progressive**: possibilité de travailler à temps partiel tout en touchant une partie de sa retraite à partir de 60 ans (si conditions remplies).
+- **Statut de micro-entrepreneur ou consultant**: créer une activité marginale (même très limitée) pour continuer à valider des trimestres tout en étant pseudo-retraité.
+- **Points Agirc-Arrco (retraite complémentaire)**: comment fonctionne la capitalisation des points, impact de l'arrêt prématuré sur les points accumulés, coefficient de solidarité (malus de 10% si départ avant 63 ans depuis 2019).
+- **PER (Plan Épargne Retraite)**: utilisation du PER comme outil de bridge, déductibilité des versements, conditions de sortie anticipée.
+
+D) STRATÉGIE OPTIMALE RECOMMANDÉE:
+- Plan chiffré et priorisé: dans quel ordre faire quoi (rachat trimestres, CVV, PER, etc.)
+- Estimation du coût total des rachats de trimestres pour ${trimestresManquants} trimestres manquants
+- Simulation de la pension finale avec et sans ces optimisations
+- Points de vigilance légaux et administratifs
+
+=== 6. "summary" ===
+Synthèse personnalisée de 5-6 paragraphes (pas de bullets) qui répond directement aux questions et préoccupations exprimées dans les notes de l'utilisateur. Doit être conversationnel, encourageant mais réaliste, et inclure les 5 actions prioritaires les plus importantes à faire maintenant.
+
+LANGUE: Réponds en français dans toutes les sections sauf si l'utilisateur a écrit ses notes en anglais.
+IMPORTANT: Réponds UNIQUEMENT avec le JSON valide. Pas de markdown, pas de \`\`\`json.`;
 
   try {
     const response = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
-    const parsed = JSON.parse(text.trim());
+
+    // Strip markdown fences if model wraps anyway
+    const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
 
     return {
       realism: parsed.realism || '',
@@ -97,8 +147,8 @@ Respond ONLY with valid JSON. No markdown fences.`;
 
 function fallbackAnalysis(calc: FireResult): AIAnalysis {
   const msg = `<p class="ai-unavailable">
-    <strong>AI analysis unavailable.</strong> Add your <code>ANTHROPIC_API_KEY</code> to a <code>.env</code> file to enable personalized recommendations.<br>
-    Mathematical projections above are calculated locally and are already active.
+    <strong>Analyse IA indisponible.</strong> Ajoutez votre <code>ANTHROPIC_API_KEY</code> dans le fichier <code>.env</code> pour activer les recommandations personnalisées.<br>
+    Les projections mathématiques sont déjà actives et calculées localement.
   </p>`;
   return {
     realism: msg,
@@ -106,9 +156,11 @@ function fallbackAnalysis(calc: FireResult): AIAnalysis {
     stocks: msg,
     realEstate: msg,
     govRetirement: msg,
-    summary: `<p>Based on current inputs: FIRE Number ${Math.round(calc.fireNumber).toLocaleString('en-US')}€ —
-      estimated ${calc.yearsToFire} years to financial independence at age ${calc.fireAge}.
-      Current savings rate: ${calc.savingsRate.toFixed(1)}%.</p>`,
+    summary: `<p>Calculs actuels : Nombre FIRE ${Math.round(calc.fireNumber).toLocaleString('fr-FR')} € —
+      environ ${calc.yearsToFire} ans avant l'indépendance financière (âge ${calc.fireAge}).
+      Taux d'épargne actuel : ${calc.savingsRate.toFixed(1)} %.</p>
+      <p class="ai-unavailable"><strong>Pour une analyse complète et personnalisée incluant le système de retraite français,
+      le rachat de trimestres, et la stratégie de période pont,</strong> configurez votre clé API Anthropic dans le fichier <code>.env</code>.</p>`,
     generatedAt: new Date().toISOString(),
   };
 }

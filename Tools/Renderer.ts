@@ -122,6 +122,10 @@ export function renderDashboard(
   .ai-section strong { color: #fff; }
   .ai-unavailable { color: var(--muted); background: rgba(255,255,255,.03); border: 1px dashed var(--border); border-radius: 6px; padding: 16px; }
   .ai-unavailable code { background: var(--border); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .ai-section table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  .ai-section table th { background: rgba(255,255,255,.05); color: var(--fire); text-align: left; padding: 8px 10px; border: 1px solid var(--border); font-size: 12px; }
+  .ai-section table td { padding: 7px 10px; border: 1px solid rgba(48,54,61,.7); vertical-align: top; }
+  .ai-section table tr:hover td { background: rgba(255,255,255,.02); }
 
   /* Summary banner */
   .summary-banner { background: rgba(243,156,18,.08); border: 1px solid rgba(243,156,18,.3); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
@@ -243,13 +247,16 @@ export function renderDashboard(
     </form>
 
     <!-- AI Response Zone -->
-    <div id="ai-response-zone" style="display:${analysis?.summary ? 'block' : 'none'};margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <span style="font-size:18px;">🤖</span>
-        <span style="font-weight:600;color:var(--fire);">AI Analysis</span>
-        <span id="ai-response-date" style="color:var(--muted);font-size:11px;margin-left:auto;">${analysis?.generatedAt ? 'Last updated: ' + new Date(analysis.generatedAt).toLocaleString('en-US') : ''}</span>
+    <div id="ai-response-zone" style="display:${analysis?.summary ? 'block' : 'none'};margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="font-size:22px;">🤖</span>
+        <div>
+          <div style="font-weight:700;font-size:16px;color:var(--fire);">AI Analysis — Personalized Response</div>
+          <div id="ai-response-date" style="color:var(--muted);font-size:11px;">${analysis?.generatedAt ? 'Generated: ' + new Date(analysis.generatedAt).toLocaleString('en-US') : ''}</div>
+        </div>
       </div>
-      <div id="ai-response-text" class="ai-section" style="line-height:1.8;">${analysis?.summary || ''}</div>
+      <div id="ai-response-text" class="ai-section" style="line-height:1.9;font-size:14.5px;background:rgba(243,156,18,.04);border:1px solid rgba(243,156,18,.15);border-radius:8px;padding:20px;">${analysis?.summary || ''}</div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px;">💡 Detailed analysis per category available in each tab below.</p>
     </div>
   </div>
 

@@ -192,14 +192,6 @@ export function renderDashboard(
           <div class="input-prefix"><span>${currency}</span><input type="number" name="stockPortfolio" value="${profile.stockPortfolio}" min="0"></div>
         </div>
         <div class="form-group">
-          <label>Real Estate Value ${currency}</label>
-          <div class="input-prefix"><span>${currency}</span><input type="number" name="realEstateValue" value="${profile.realEstateValue}" min="0"></div>
-        </div>
-        <div class="form-group">
-          <label>Mortgage Remaining ${currency}</label>
-          <div class="input-prefix"><span>${currency}</span><input type="number" name="mortgageRemaining" value="${profile.mortgageRemaining}" min="0"></div>
-        </div>
-        <div class="form-group">
           <label>Monthly Rental Income ${currency}</label>
           <div class="input-prefix"><span>${currency}</span><input type="number" name="monthlyRentalIncome" value="${profile.monthlyRentalIncome}" min="0"></div>
         </div>
@@ -231,6 +223,42 @@ export function renderDashboard(
         <div class="form-group">
           <label>Years Required for Full Pension</label>
           <input type="number" name="targetContributionYears" value="${profile.targetContributionYears}" min="1" max="50">
+        </div>
+
+        <div class="form-group full" style="margin-top:8px;">
+          <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">🏠 Property to SELL at Retirement (primary)</div>
+        </div>
+        <div class="form-group">
+          <label>Sale Price of Property ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="realEstateValue" value="${profile.realEstateValue}" min="0"></div>
+        </div>
+        <div class="form-group">
+          <label>Mortgage Remaining on it ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="mortgageRemaining" value="${profile.mortgageRemaining}" min="0"></div>
+        </div>
+
+        <div class="form-group full" style="margin-top:8px;">
+          <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">🏡 Retirement Home (where you'll live — no mortgage)</div>
+        </div>
+        <div class="form-group">
+          <label>Value of Retirement Home ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="secondPropertyValue" value="${profile.secondPropertyValue || 0}" min="0"></div>
+        </div>
+        <div class="form-group">
+          <label>City / Location</label>
+          <input type="text" name="secondPropertyCity" value="${profile.secondPropertyCity || ''}" placeholder="e.g. Bretagne">
+        </div>
+
+        <div class="form-group full" style="margin-top:8px;">
+          <div style="font-weight:700;color:var(--fire);font-size:0.95rem;margin-bottom:8px;">💰 Expected Inheritance</div>
+        </div>
+        <div class="form-group">
+          <label>Inheritance Amount ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="inheritanceAmount" value="${profile.inheritanceAmount || 0}" min="0"></div>
+        </div>
+        <div class="form-group">
+          <label>Age When Received</label>
+          <input type="number" name="inheritanceAge" value="${profile.inheritanceAge || 65}" min="30" max="100">
         </div>
 
         <div class="form-group full">
@@ -590,6 +618,10 @@ function updateLive() {
     realEstateValue: +fd.get('realEstateValue'),
     mortgageRemaining: +fd.get('mortgageRemaining'),
     monthlyRentalIncome: +fd.get('monthlyRentalIncome'),
+    secondPropertyValue: +fd.get('secondPropertyValue') || 0,
+    secondPropertyCity: fd.get('secondPropertyCity') || '',
+    inheritanceAmount: +fd.get('inheritanceAmount') || 0,
+    inheritanceAge: +fd.get('inheritanceAge') || 65,
     targetRetirementAge: +fd.get('targetRetirementAge'),
     monthlyRetirementExpenses: +fd.get('monthlyRetirementExpenses'),
     estimatedReturn: +fd.get('estimatedReturn') / 100,

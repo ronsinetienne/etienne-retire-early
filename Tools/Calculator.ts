@@ -4,9 +4,16 @@ export interface UserProfile {
   monthlyExpenses: number;
   currentSavings: number;
   stockPortfolio: number;
+  // Primary property to sell at retirement
   realEstateValue: number;
   mortgageRemaining: number;
   monthlyRentalIncome: number;
+  // Second property (retirement home — no mortgage)
+  secondPropertyValue: number;
+  secondPropertyCity: string;
+  // Inheritance
+  inheritanceAmount: number;
+  inheritanceAge: number;         // age at which inheritance is received
   targetRetirementAge: number;
   monthlyRetirementExpenses: number;
   estimatedReturn: number; // e.g. 0.07 for 7%
@@ -57,7 +64,7 @@ export function calculate(profile: UserProfile): FireResult {
 
   const totalAssets = profile.currentSavings + profile.stockPortfolio;
   const netRealEstate = profile.realEstateValue - profile.mortgageRemaining;
-  const totalNetWorth = totalAssets + netRealEstate;
+  const totalNetWorth = totalAssets + netRealEstate + (profile.secondPropertyValue || 0);
 
   const monthlySurplus = profile.monthlyIncome - profile.monthlyExpenses + profile.monthlyRentalIncome;
   const annualSavings = monthlySurplus * 12;

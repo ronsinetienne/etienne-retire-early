@@ -4,23 +4,30 @@ import { config, PROJECT_ROOT } from '../Config/Config';
 import type { UserProfile } from './Calculator';
 
 const defaultProfile: UserProfile = {
-  age: 35,
-  monthlyIncome: 4000,
-  monthlyExpenses: 2500,
+  age: 51,
+  monthlyIncome: 5000,
+  monthlyExpenses: 3500,
   currentSavings: 20000,
-  stockPortfolio: 10000,
-  realEstateValue: 0,
-  mortgageRemaining: 0,
+  stockPortfolio: 0,
+  // Maison à vendre (ex: Versailles)
+  realEstateValue: 900000,
+  mortgageRemaining: 134124,
   monthlyRentalIncome: 0,
-  targetRetirementAge: 50,
-  monthlyRetirementExpenses: 3000,
-  estimatedReturn: 0.07,
+  // Maison de retraite (ex: Bretagne) — sans crédit
+  secondPropertyValue: 300000,
+  secondPropertyCity: 'Bretagne',
+  // Héritage
+  inheritanceAmount: 500000,
+  inheritanceAge: 65,
+  targetRetirementAge: 60,
+  monthlyRetirementExpenses: 3500,
+  estimatedReturn: 0.04,
   inflation: 0.02,
   notes: '',
-  govRetirementAge: 64,
-  govMonthlyPension: 1500,
-  contributionYears: 10,
-  targetContributionYears: 42,
+  govRetirementAge: 65,
+  govMonthlyPension: 1800,
+  contributionYears: 28,
+  targetContributionYears: 43,
 };
 
 function profilePath(): string {

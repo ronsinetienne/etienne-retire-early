@@ -68,14 +68,31 @@ ${profile.notes || '(aucune note fournie)'}
 
 ---
 
-Fournis une réponse JSON avec exactement ces 6 clés. Chaque valeur est un LONG snippet HTML riche (utilise <h4>, <p>, <ul>, <li>, <strong>, <table>, <tr>, <td>).
-Chaque section doit faire au minimum 400 mots. Sois très spécifique, chiffré, et actionnable.
+Fournis une réponse JSON avec exactement ces 6 clés. Chaque valeur est un LONG snippet HTML riche (utilise <h4>, <p>, <ul>, <li>, <strong>, <table>, <tr>, <td>, <th>).
+Chaque section doit faire au minimum 500 mots. Sois TRÈS spécifique, chiffré, et actionnable. Utilise des tableaux HTML partout où c'est pertinent.
 
 === 1. "realism" ===
 Analyse honnête et détaillée de faisabilité. Score /10 justifié. Ce qui est réaliste, ce qui ne l'est pas, les 3 plus grands obstacles, et comment les surmonter concrètement. Prends en compte les notes de l'utilisateur.
 
 === 2. "firePlan" ===
-Plan d'action détaillé année par année jusqu'à la retraite. Montants précis à épargner chaque mois, jalons (25%, CoastFIRE, 50%, FIRE), ajustements selon les notes de l'utilisateur.
+SIMULATION FINANCIÈRE DÉTAILLÉE ANNÉE PAR ANNÉE.
+
+Construis obligatoirement un tableau HTML complet avec ces colonnes:
+Année | Âge | Revenus | Dépenses | Épargne annuelle | Investissement cumulé | Patrimoine total | Étape clé
+
+Couvre TOUTES les années depuis aujourd'hui jusqu'à la retraite (âge ${profile.targetRetirementAge}) puis la période pont jusqu'à ${profile.govRetirementAge} ans.
+Pour chaque ligne, calcule:
+- Les revenus attendus (salaire, locatif, dividendes progressifs)
+- Les dépenses projetées (inflation ${(profile.inflation*100).toFixed(1)}%/an)
+- L'épargne annuelle (revenus - dépenses)
+- L'investissement cumulé avec rendement ${(profile.estimatedReturn*100).toFixed(1)}%/an
+- Le patrimoine total (investissements + immobilier net)
+- L'étape clé: "CoastFIRE atteint", "FIRE atteint", "Retraite légale", "Pont: décaissement", etc.
+
+Après le tableau, ajoute:
+- Plan d'investissement mensuel précis (combien mettre où: PEA, CTO, livret A, PER, immo)
+- Les 5 décisions financières les plus importantes à prendre cette année
+- Basé sur les notes de l'utilisateur: réponse personnalisée sur ses préoccupations spécifiques
 
 === 3. "stocks" ===
 Allocation boursière précise avec ETFs spécifiques (IWDA, MSCI World, S&P500, obligations, etc.), pourcentages, et rationale détaillé selon l'âge et le profil. Inclure les plateformes recommandées (PEA, CTO, etc.).
@@ -112,7 +129,14 @@ D) STRATÉGIE OPTIMALE RECOMMANDÉE:
 - Points de vigilance légaux et administratifs
 
 === 6. "summary" ===
-Synthèse personnalisée de 5-6 paragraphes (pas de bullets) qui répond directement aux questions et préoccupations exprimées dans les notes de l'utilisateur. Doit être conversationnel, encourageant mais réaliste, et inclure les 5 actions prioritaires les plus importantes à faire maintenant.
+Commence par répondre directement et personnellement aux notes de l'utilisateur (cite ce qu'il a écrit, réponds précisément à chaque question posée).
+Puis fournis:
+- Un résumé de la situation financière actuelle en 2-3 phrases chiffrées
+- La réponse à la question centrale: est-ce que partir à ${profile.targetRetirementAge} ans est faisable avec ce profil?
+- Les 3 risques principaux identifiés et comment les mitiger
+- Un plan d'action en 5 étapes concrètes à faire dans les 6 prochains mois (avec montants précis)
+- Une projection encourageante: si tout va bien, à quoi ressemble la vie à ${profile.targetRetirementAge} ans?
+Format: HTML avec <h4>, <p>, <ul><li>, <strong>. Minimum 600 mots. Ton: expert financier qui parle à un ami.
 
 LANGUE: Réponds en français dans toutes les sections sauf si l'utilisateur a écrit ses notes en anglais.
 IMPORTANT: Réponds UNIQUEMENT avec le JSON valide. Pas de markdown, pas de \`\`\`json.`;
@@ -120,7 +144,7 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON valide. Pas de markdown, pas de \`\`
   try {
     const response = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 8000,
+      max_tokens: 16000,
       messages: [{ role: 'user', content: prompt }],
     });
 

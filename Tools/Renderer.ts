@@ -219,8 +219,16 @@ export function renderDashboard(
         <!-- govMonthlyPension hidden — now calculated from SAM + Agirc-Arrco points -->
         <input type="hidden" name="govMonthlyPension" value="${profile.govMonthlyPension}">
         <div class="form-group">
-          <label>Contribution Years (so far)</label>
-          <input type="number" name="contributionYears" value="${profile.contributionYears}" min="0" max="50">
+          <label>Contribution Quarters (so far, excl. military)</label>
+          <input type="number" name="contributionQuarters" value="${(profile as any).contributionQuarters ?? Math.round(((profile as any).contributionYears||0)*4)}" min="0" max="200"
+            title="Enter validated quarters from work only. 1 year = 4 quarters. E.g. 25 years = 100 quarters.">
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">1 year = 4 quarters — e.g. 25 years = 100 quarters</div>
+        </div>
+        <div class="form-group">
+          <label>Military Service Quarters</label>
+          <input type="number" name="militaryServiceQuarters" value="${(profile as any).militaryServiceQuarters ?? 0}" min="0" max="20"
+            title="16 months compulsory military service = 5 quarters (90 days each)">
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">16 months service national = <strong>5 quarters</strong> (each 90 days validated)</div>
         </div>
 
         <div class="form-group full" style="margin-top:8px;">
@@ -569,7 +577,7 @@ export function renderDashboard(
         <div class="card-title">Contribution Progress</div>
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:13px;" id="gov-contrib-label">${profile.contributionYears} / ${profile.targetContributionYears} years</span>
+            <span style="font-size:13px;" id="gov-contrib-label">${((profile as any).contributionQuarters ?? 0) + ((profile as any).militaryServiceQuarters ?? 0)} / ${calc.trimestresRequis} quarters</span>
             <span style="color:var(--fire);font-weight:700;" id="gov-contrib-pct">${pct(calc.contributionProgress)}</span>
           </div>
           <div class="progress-bar-wrap">
@@ -577,7 +585,7 @@ export function renderDashboard(
           </div>
         </div>
         <div class="metric">
-          <span class="label">Remaining years for full pension</span>
+          <span class="label">Quarters still needed for full pension</span>
           <span class="value" style="color:var(--purple);" id="gov-years-left">${calc.yearsToFullPension}</span>
         </div>
       </div>
@@ -827,7 +835,8 @@ function updateLive() {
     notes: fd.get('notes'),
     govRetirementAge: +fd.get('govRetirementAge'),
     govMonthlyPension: +fd.get('govMonthlyPension'),
-    contributionYears: +fd.get('contributionYears'),
+    contributionQuarters: +fd.get('contributionQuarters') || 0,
+    militaryServiceQuarters: +fd.get('militaryServiceQuarters') || 0,
     targetContributionYears: +fd.get('targetContributionYears'),
     lifeExpectancy: +fd.get('lifeExpectancy') || 85,
   };
@@ -882,12 +891,14 @@ function updateLive() {
   const netExpWithPension = Math.max(0, annualRetExp - annualRental2 - govPensionAnnual);
   const fireWithPension = netExpWithPension * 25;
   const govGap = Math.max(0, p.govRetirementAge - p.targetRetirementAge);
-  const contribPct = p.targetContributionYears > 0 ? Math.min(100, p.contributionYears / p.targetContributionYears * 100) : 0;
-  const yearsLeft = Math.max(0, p.targetContributionYears - p.contributionYears);
+  const totalQtrs = (p.contributionQuarters || 0) + (p.militaryServiceQuarters || 0);
+  const trimReqLive = c.trimestresRequis || 172;
+  const contribPct = trimReqLive > 0 ? Math.min(100, totalQtrs / trimReqLive * 100) : 0;
+  const yearsLeft = Math.max(0, trimReqLive - totalQtrs);
   document.getElementById('gov-ret-age').textContent = p.govRetirementAge;
   document.getElementById('gov-monthly-pension').textContent = '€'+fmt(p.govMonthlyPension);
   document.getElementById('gov-annual-pension').textContent = '€'+fmt(govPensionAnnual);
-  document.getElementById('gov-contrib-label').textContent = p.contributionYears+' / '+p.targetContributionYears+' years';
+  document.getElementById('gov-contrib-label').textContent = totalQtrs+' / '+trimReqLive+' quarters';
   document.getElementById('gov-contrib-pct').textContent = pct(contribPct);
   document.getElementById('gov-contrib-bar').style.width = Math.min(100,contribPct)+'%';
   document.getElementById('gov-years-left').textContent = yearsLeft;
@@ -989,7 +1000,8 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   p.inflation = (+fd.get('inflation')) / 100;
   p.govRetirementAge = +fd.get('govRetirementAge');
   p.govMonthlyPension = +fd.get('govMonthlyPension');
-  p.contributionYears = +fd.get('contributionYears');
+  p.contributionQuarters = +fd.get('contributionQuarters') || 0;
+  p.militaryServiceQuarters = +fd.get('militaryServiceQuarters') || 0;
   p.targetContributionYears = +fd.get('targetContributionYears');
   p.lifeExpectancy = +fd.get('lifeExpectancy') || 85;
   try {
@@ -1008,7 +1020,8 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   p.inflation = (+fd.get('inflation')) / 100;
   p.govRetirementAge = +fd.get('govRetirementAge');
   p.govMonthlyPension = +fd.get('govMonthlyPension');
-  p.contributionYears = +fd.get('contributionYears');
+  p.contributionQuarters = +fd.get('contributionQuarters') || 0;
+  p.militaryServiceQuarters = +fd.get('militaryServiceQuarters') || 0;
   p.targetContributionYears = +fd.get('targetContributionYears');
 
   const btn = document.getElementById('analyze-btn');

@@ -28,8 +28,9 @@ const defaultProfile: UserProfile = {
   notes: '',
   govRetirementAge: 65,
   govMonthlyPension: 1800,
-  contributionYears: 28,
-  targetContributionYears: 43,
+  contributionQuarters: 100,       // validated work quarters (excl. military)
+  militaryServiceQuarters: 0,
+  targetContributionYears: 43,    // legacy compat
   birthYear: 1974,
   salaireMoyen: 0,
   agircPoints: 0,

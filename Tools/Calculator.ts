@@ -24,8 +24,9 @@ export interface UserProfile {
   // Government retirement
   govRetirementAge: number;       // legal retirement age (e.g. 64 in France)
   govMonthlyPension: number;      // rough estimate (overridden by calculated value if SAM provided)
-  contributionYears: number;      // years of contributions so far
-  targetContributionYears: number;// years required for full pension (e.g. 43 in France)
+  contributionQuarters: number;   // validated quarters of contributions so far (excl. military)
+  militaryServiceQuarters: number;// quarters from military service (16 months = 5 quarters)
+  targetContributionYears: number;// years required for full pension (legacy, kept for compat)
   // Precise pension inputs (French system)
   birthYear: number;              // to determine exact trimestres requis
   salaireMoyen: number;           // SAM: average annual salary over best 25 years (gross)
@@ -145,7 +146,7 @@ export function calculate(profile: UserProfile): FireResult {
 
   // ── French pension precise calculation ────────────────────────────────────────
   const yearsToRetirement = Math.max(0, profile.targetRetirementAge - profile.age);
-  const quartersValidated  = (profile.contributionYears || 0) * 4;
+  const quartersValidated  = (profile.contributionQuarters || 0) + (profile.militaryServiceQuarters || 0);
   const quartersAtRetirement = quartersValidated + yearsToRetirement * 4;
 
   // Trimestres requis based on birth year (French law 2023 reform)
@@ -188,10 +189,10 @@ export function calculate(profile: UserProfile): FireResult {
   // FIRE number accounting for future pension (pension reduces expenses in retirement)
   const netExpWithPension = Math.max(0, annualRetirementExpenses - annualRentalIncome - govPensionAnnual);
   const fireNumberWithPension = netExpWithPension * 25;
-  const contributionProgress = profile.targetContributionYears > 0
-    ? Math.min(100, (profile.contributionYears / profile.targetContributionYears) * 100)
+  const contributionProgress = trimestresRequis > 0
+    ? Math.min(100, (quartersValidated / trimestresRequis) * 100)
     : 0;
-  const yearsToFullPension = Math.max(0, profile.targetContributionYears - profile.contributionYears);
+  const yearsToFullPension = Math.max(0, trimestresRequis - quartersValidated); // now represents quarters remaining
 
   return {
     fireNumber,

@@ -212,6 +212,10 @@ export function renderDashboard(
           <label>Legal Retirement Age</label>
           <input type="number" name="govRetirementAge" value="${profile.govRetirementAge}" min="50" max="75">
         </div>
+        <div class="form-group">
+          <label>Estimated Age at Death</label>
+          <input type="number" name="lifeExpectancy" value="${(profile as any).lifeExpectancy || 85}" min="67" max="110">
+        </div>
         <!-- govMonthlyPension hidden — now calculated from SAM + Agirc-Arrco points -->
         <input type="hidden" name="govMonthlyPension" value="${profile.govMonthlyPension}">
         <div class="form-group">
@@ -696,7 +700,7 @@ export function renderDashboard(
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">
         Total pension received across your lifetime, for each retirement scenario, depending on when you die.
         <strong>Adjust your expected life expectancy:</strong>
-        <input type="number" id="life-exp-input" value="85" min="67" max="110" step="1"
+        <input type="number" id="life-exp-input" value="${(profile as any).lifeExpectancy || 85}" min="67" max="110" step="1"
           style="width:65px;margin:0 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:3px 8px;color:var(--text);font-size:13px;"
           oninput="renderLifetimePensionTable()">
         years old
@@ -825,8 +829,12 @@ function updateLive() {
     govMonthlyPension: +fd.get('govMonthlyPension'),
     contributionYears: +fd.get('contributionYears'),
     targetContributionYears: +fd.get('targetContributionYears'),
+    lifeExpectancy: +fd.get('lifeExpectancy') || 85,
   };
   const c = calcFire(p);
+  // Sync lifetime pension table life expectancy input
+  const lifeExpInput = document.getElementById('life-exp-input');
+  if (lifeExpInput) { lifeExpInput.value = p.lifeExpectancy; renderLifetimePensionTable(); }
   const fc = c.fireAge <= p.targetRetirementAge ? '#27ae60' : c.fireAge <= p.targetRetirementAge+5 ? '#f39c12' : '#e74c3c';
   const pc = c.progress >= 75 ? '#27ae60' : c.progress >= 40 ? '#f39c12' : '#e74c3c';
 
@@ -983,6 +991,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   p.govMonthlyPension = +fd.get('govMonthlyPension');
   p.contributionYears = +fd.get('contributionYears');
   p.targetContributionYears = +fd.get('targetContributionYears');
+  p.lifeExpectancy = +fd.get('lifeExpectancy') || 85;
   try {
     const r = await fetch('/api/save-profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) });
     const btn = document.getElementById('save-btn');
@@ -1071,8 +1080,36 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     2026:48042,2027:49003,2028:49983,2029:50983,2030:52002,2031:53042,2032:54103,2033:55185,2034:56289,
   };
   // Pre-filled salary knowledge: last 15 known years (2011-2025) + future years at €85k
-  const KNOWN_SALARY = {};
-  for (let y = 2011; y <= 2034; y++) KNOWN_SALARY[y] = 85000;
+  // Pre-filled from info-retraite.fr relevé de carrière (annual gross, multi-employer years summed)
+  const KNOWN_SALARY = {
+    2002: 0,
+    2003: 0,
+    2004: 25173,   // RAGE INTERIM (11087 + 7428) + NUTRICIL (6658) + chômage periods
+    2005: 56087,   // NUTRICIL FRANCE SA
+    2006: 69527,   // NUTRICIL FRANCE SA
+    2007: 83470,   // NUTRICIL (51458) + SASTOR FRANCE (32012)
+    2008: 55360,   // SASTOR FRANCE
+    2009: 39785,   // SASTOR FRANCE (partial + congé)
+    2010: 56999,   // SASTOR FRANCE
+    2011: 68086,   // SASTOR FRANCE
+    2012: 66341,   // SASTOR FRANCE
+    2013: 72491,   // SASTOR FRANCE
+    2014: 64081,   // SASTOR FRANCE (58659) + DIEEL FRANCE (5422)
+    2015: 104802,  // SASTOR FRANCE (1612) + DIEEL FRANCE (103190)
+    2016: 75954,   // DIEEL FRANCE
+    2017: 69092,   // DIEEL FRANCE
+    2018: 90127,   // DIEEL FRANCE
+    2019: 79009,   // DIEEL FRANCE
+    2020: 84177,   // DIEEL FRANCE (14952) + ABRITH (69225)
+    2021: 95025,   // ABRITH
+    2022: 99241,   // ABRITH
+    2023: 99274,   // ABRITH
+    2024: 99382,   // ABRITH
+    2025: 103162,  // ABRITH
+    // Future years (estimates based on current trajectory at ABRITH)
+    2026: 105000, 2027: 105000, 2028: 105000, 2029: 105000,
+    2030: 105000, 2031: 105000, 2032: 105000, 2033: 105000, 2034: 105000,
+  };
 
   const birthYear = profileData.birthYear || 1974;
   const retireYear = (profileData.age || 51) < 60

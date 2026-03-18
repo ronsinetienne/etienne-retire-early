@@ -1,4 +1,4 @@
-import { config } from '../Config/Config';
+import { config, PROJECT_ROOT } from '../Config/Config';
 import { calculate } from './Calculator';
 import { loadProfile, saveProfile, loadAnalysis, saveAnalysis } from './ProfileStore';
 import { renderDashboard } from './Renderer';
@@ -6,7 +6,8 @@ import { analyzeProfile } from './AIAnalyzer';
 import type { UserProfile } from './Calculator';
 
 // Load .env if present
-const envPath = Bun.env.ENV_FILE || '.env';
+import { resolve } from 'path';
+const envPath = Bun.env.ENV_FILE || resolve(PROJECT_ROOT, '.env');
 try {
   const f = Bun.file(envPath);
   if (await f.exists()) {
@@ -20,8 +21,10 @@ try {
   }
 } catch { /* .env is optional */ }
 
+const port = Number(process.env.PORT) || Number(process.env.PREVIEW_PORT) || config.port;
+
 const server = Bun.serve({
-  port: config.port,
+  port,
 
   async fetch(req) {
     const url = new URL(req.url);

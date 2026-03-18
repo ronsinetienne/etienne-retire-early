@@ -12,6 +12,11 @@ export interface UserProfile {
   estimatedReturn: number; // e.g. 0.07 for 7%
   inflation: number;       // e.g. 0.02 for 2%
   notes: string;
+  // Government retirement
+  govRetirementAge: number;       // legal retirement age (e.g. 64 in France)
+  govMonthlyPension: number;      // estimated monthly state pension
+  contributionYears: number;      // years of contributions so far
+  targetContributionYears: number;// years required for full pension (e.g. 42 in France)
 }
 
 export interface FireResult {
@@ -31,6 +36,12 @@ export interface FireResult {
   realReturnRate: number;
   projectionData: Array<{ year: number; value: number; fireNumber: number }>;
   milestones: Array<{ label: string; year: number; value: number; reached: boolean }>;
+  // Government retirement
+  govGap: number;                 // years between FIRE target and legal retirement
+  govPensionAnnual: number;       // annual state pension
+  fireNumberWithPension: number;  // FIRE number reduced thanks to pension
+  contributionProgress: number;   // % of required contribution years completed
+  yearsToFullPension: number;     // remaining years to reach full pension entitlement
 }
 
 export function calculate(profile: UserProfile): FireResult {
@@ -109,6 +120,17 @@ export function calculate(profile: UserProfile): FireResult {
     m.year = currentYear + y;
   }
 
+  // Government retirement calculations
+  const govPensionAnnual = profile.govMonthlyPension * 12;
+  const govGap = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
+  // FIRE number accounting for future pension (pension reduces expenses in retirement)
+  const netExpWithPension = Math.max(0, annualRetirementExpenses - annualRentalIncome - govPensionAnnual);
+  const fireNumberWithPension = netExpWithPension * 25;
+  const contributionProgress = profile.targetContributionYears > 0
+    ? Math.min(100, (profile.contributionYears / profile.targetContributionYears) * 100)
+    : 0;
+  const yearsToFullPension = Math.max(0, profile.targetContributionYears - profile.contributionYears);
+
   return {
     fireNumber,
     leanFireNumber,
@@ -126,5 +148,10 @@ export function calculate(profile: UserProfile): FireResult {
     realReturnRate: r,
     projectionData,
     milestones,
+    govGap,
+    govPensionAnnual,
+    fireNumberWithPension,
+    contributionProgress,
+    yearsToFullPension,
   };
 }

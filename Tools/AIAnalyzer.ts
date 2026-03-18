@@ -7,6 +7,7 @@ export interface AIAnalysis {
   firePlan: string;
   stocks: string;
   realEstate: string;
+  govRetirement: string;
   summary: string;
   generatedAt: string;
 }
@@ -36,6 +37,9 @@ Analyze this user's financial profile and provide personalized, actionable advic
 - Real estate value: ${fmt(profile.realEstateValue)}
 - Mortgage remaining: ${fmt(profile.mortgageRemaining)}
 - Monthly rental income: ${fmt(profile.monthlyRentalIncome)}
+- Legal retirement age: ${profile.govRetirementAge}
+- Estimated monthly state pension: ${fmt(profile.govMonthlyPension)}
+- Contribution years so far: ${profile.contributionYears} / ${profile.targetContributionYears} required
 - Target retirement age: ${profile.targetRetirementAge}
 - Desired monthly retirement income: ${fmt(profile.monthlyRetirementExpenses)}
 - Assumed annual return: ${(profile.estimatedReturn * 100).toFixed(1)}%
@@ -43,7 +47,9 @@ Analyze this user's financial profile and provide personalized, actionable advic
 - User notes: "${profile.notes}"
 
 ## Current FIRE Calculations
-- FIRE Number: ${fmt(calc.fireNumber)}
+- FIRE Number (without pension): ${fmt(calc.fireNumber)}
+- FIRE Number (with state pension): ${fmt(calc.fireNumberWithPension)}
+- Gap between FIRE target and legal retirement: ${calc.govGap} years
 - Lean FIRE: ${fmt(calc.leanFireNumber)} | Fat FIRE: ${fmt(calc.fatFireNumber)}
 - Current investable assets: ${fmt(calc.totalAssets)}
 - Net worth: ${fmt(calc.totalNetWorth)}
@@ -58,7 +64,8 @@ Provide a JSON response with exactly these 5 keys. Each value is an HTML snippet
 2. "firePlan" — Step-by-step action plan with specific milestones, contribution amounts, and timeline.
 3. "stocks" — Portfolio allocation recommendation with specific ETFs (e.g., MSCI World, S&P 500, bonds), percentages, and rationale based on age and goal.
 4. "realEstate" — Real estate strategy: should they buy, keep renting, invest in REITs, rental property? Specific advice.
-5. "summary" — Executive summary in 3-4 sentences.
+5. "govRetirement" — Government/state pension strategy: bridge period between FIRE and legal retirement age, how to optimize pension entitlements, impact on FIRE number, risks of early retirement on pension rights.
+6. "summary" — Executive summary in 3-4 sentences.
 
 Use <strong>, <ul>, <li>, <p>, <h4> tags. Be specific, data-driven, and actionable.
 Respond ONLY with valid JSON. No markdown fences.`;
@@ -78,6 +85,7 @@ Respond ONLY with valid JSON. No markdown fences.`;
       firePlan: parsed.firePlan || '',
       stocks: parsed.stocks || '',
       realEstate: parsed.realEstate || '',
+      govRetirement: parsed.govRetirement || '',
       summary: parsed.summary || '',
       generatedAt: new Date().toISOString(),
     };
@@ -97,6 +105,7 @@ function fallbackAnalysis(calc: FireResult): AIAnalysis {
     firePlan: msg,
     stocks: msg,
     realEstate: msg,
+    govRetirement: msg,
     summary: `<p>Based on current inputs: FIRE Number ${Math.round(calc.fireNumber).toLocaleString('en-US')}€ —
       estimated ${calc.yearsToFire} years to financial independence at age ${calc.fireAge}.
       Current savings rate: ${calc.savingsRate.toFixed(1)}%.</p>`,

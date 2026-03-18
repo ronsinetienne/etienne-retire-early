@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 export interface FireConfig {
   port: number;
@@ -15,8 +16,11 @@ const defaultConfig: FireConfig = {
   enableAI: false,
 };
 
+// Project root = directory containing this file's parent (Config/../)
+export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
 function loadConfig(): FireConfig {
-  const configPath = resolve(process.cwd(), 'fire.config.json');
+  const configPath = resolve(PROJECT_ROOT, 'fire.config.json');
   if (!existsSync(configPath)) return defaultConfig;
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf-8'));

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "retire-early",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "Tools/Server.ts"],
+      "port": 3744,
+      "autoPort": false
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { config } from '../Config/Config';
+import { config, PROJECT_ROOT } from '../Config/Config';
 import type { UserProfile } from './Calculator';
 
 const defaultProfile: UserProfile = {
@@ -17,10 +17,14 @@ const defaultProfile: UserProfile = {
   estimatedReturn: 0.07,
   inflation: 0.02,
   notes: '',
+  govRetirementAge: 64,
+  govMonthlyPension: 1500,
+  contributionYears: 10,
+  targetContributionYears: 42,
 };
 
 function profilePath(): string {
-  const dir = resolve(process.cwd(), config.dataDir);
+  const dir = resolve(PROJECT_ROOT, config.dataDir);
   return resolve(dir, 'profile.json');
 }
 
@@ -43,7 +47,7 @@ export function saveProfile(profile: UserProfile): void {
 }
 
 export function loadAnalysis(): Record<string, string> | null {
-  const path = resolve(process.cwd(), config.dataDir, 'analysis.json');
+  const path = resolve(PROJECT_ROOT, config.dataDir, 'analysis.json');
   if (!existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, 'utf-8'));
@@ -53,7 +57,7 @@ export function loadAnalysis(): Record<string, string> | null {
 }
 
 export function saveAnalysis(analysis: Record<string, string>): void {
-  const dir = resolve(process.cwd(), config.dataDir);
+  const dir = resolve(PROJECT_ROOT, config.dataDir);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(resolve(dir, 'analysis.json'), JSON.stringify(analysis, null, 2), 'utf-8');
 }

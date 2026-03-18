@@ -212,6 +212,23 @@ export function renderDashboard(
           <input type="number" name="inflation" value="${(profile.inflation * 100).toFixed(1)}" step="0.1" min="0" max="10">
         </div>
 
+        <div class="form-group">
+          <label>Legal Retirement Age</label>
+          <input type="number" name="govRetirementAge" value="${profile.govRetirementAge}" min="50" max="75">
+        </div>
+        <div class="form-group">
+          <label>Estimated Monthly State Pension ${currency}</label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="govMonthlyPension" value="${profile.govMonthlyPension}" min="0"></div>
+        </div>
+        <div class="form-group">
+          <label>Contribution Years (so far)</label>
+          <input type="number" name="contributionYears" value="${profile.contributionYears}" min="0" max="50">
+        </div>
+        <div class="form-group">
+          <label>Years Required for Full Pension</label>
+          <input type="number" name="targetContributionYears" value="${profile.targetContributionYears}" min="1" max="50">
+        </div>
+
         <div class="form-group full">
           <label>My goals, questions, context (for AI analysis)</label>
           <textarea name="notes" placeholder="e.g. I want to retire at 45, I have a 300k mortgage, I am considering investing in rental property in Lyon...">${profile.notes}</textarea>
@@ -268,6 +285,7 @@ export function renderDashboard(
     <button class="tab-btn" data-tab="fire-plan">📊 FIRE Plan</button>
     <button class="tab-btn" data-tab="stocks">📈 Stock Market</button>
     <button class="tab-btn" data-tab="real-estate">🏠 Real Estate</button>
+    <button class="tab-btn" data-tab="gov-retirement">🏛️ Gov. Retirement</button>
   </div>
 
   <!-- ═══ TAB: REALISM ═══ -->
@@ -414,6 +432,70 @@ export function renderDashboard(
     </div>
   </div>
 
+  <!-- ═══ TAB: GOVERNMENT RETIREMENT ═══ -->
+  <div class="tab-pane" id="tab-gov-retirement">
+    <div class="grid-3" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="card-title">State Pension Overview</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="metric">
+            <span class="label">Legal Retirement Age</span>
+            <span class="value" id="gov-ret-age">${profile.govRetirementAge}</span>
+          </div>
+          <div class="metric">
+            <span class="label">Estimated Monthly Pension</span>
+            <span class="value" style="color:var(--green);" id="gov-monthly-pension">${currency}${fmt(profile.govMonthlyPension)}</span>
+          </div>
+          <div class="metric">
+            <span class="label">Annual Pension Income</span>
+            <span class="value" id="gov-annual-pension">${currency}${fmt(calc.govPensionAnnual)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Contribution Progress</div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:13px;" id="gov-contrib-label">${profile.contributionYears} / ${profile.targetContributionYears} years</span>
+            <span style="color:var(--fire);font-weight:700;" id="gov-contrib-pct">${pct(calc.contributionProgress)}</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="gov-contrib-bar" style="width:${Math.min(100, calc.contributionProgress)}%;background:linear-gradient(90deg,#58a6ff,#bc8cff);"></div>
+          </div>
+        </div>
+        <div class="metric">
+          <span class="label">Remaining years for full pension</span>
+          <span class="value" style="color:var(--purple);" id="gov-years-left">${calc.yearsToFullPension}</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Impact on FIRE</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="metric">
+            <span class="label">FIRE Number (without pension)</span>
+            <span class="value" id="gov-fire-without">${currency}${fmt(calc.fireNumber)}</span>
+          </div>
+          <div class="metric">
+            <span class="label">FIRE Number (pension included)</span>
+            <span class="value" style="color:var(--green);" id="gov-fire-with">${currency}${fmt(calc.fireNumberWithPension)}</span>
+          </div>
+          <div class="metric">
+            <span class="label">Savings from pension</span>
+            <span class="value" style="color:var(--fire);" id="gov-fire-saving">${currency}${fmt(calc.fireNumber - calc.fireNumberWithPension)}</span>
+          </div>
+          <div class="metric">
+            <span class="label">Gap: FIRE age → legal retirement</span>
+            <span class="value" style="color:${calc.govGap > 10 ? 'var(--red)' : calc.govGap > 5 ? 'var(--fire)' : 'var(--green)'};" id="gov-gap">${calc.govGap} years</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🤖 AI Government Retirement Strategy</div>
+      <div class="ai-section" id="ai-gov-retirement">${analysis?.govRetirement || '<p style="color:var(--muted);">Click "Analyze with AI" above to get personalized state pension recommendations.</p>'}</div>
+    </div>
+  </div>
+
 </div><!-- /container -->
 
 <!-- ECharts via CDN -->
@@ -439,7 +521,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // ═══ LIVE CALCULATIONS ═══
 function calcFire(p) {
-  const r = Math.max(0.001, p.estimatedReturn - p.inflation);
+  const r = Math.max(0.001, (p.estimatedReturn||0.07) - (p.inflation||0.02));
   const annualRet = p.monthlyRetirementExpenses * 12;
   const annualRental = p.monthlyRentalIncome * 12;
   const netExp = Math.max(0, annualRet - annualRental);
@@ -496,6 +578,10 @@ function updateLive() {
     estimatedReturn: +fd.get('estimatedReturn') / 100,
     inflation: +fd.get('inflation') / 100,
     notes: fd.get('notes'),
+    govRetirementAge: +fd.get('govRetirementAge'),
+    govMonthlyPension: +fd.get('govMonthlyPension'),
+    contributionYears: +fd.get('contributionYears'),
+    targetContributionYears: +fd.get('targetContributionYears'),
   };
   const c = calcFire(p);
   const fc = c.fireAge <= p.targetRetirementAge ? '#27ae60' : c.fireAge <= p.targetRetirementAge+5 ? '#f39c12' : '#e74c3c';
@@ -537,6 +623,28 @@ function updateLive() {
     document.getElementById('re-yield').textContent = 'N/A';
     document.getElementById('re-yield').style.color = 'var(--muted)';
   }
+
+  // Gov retirement tab
+  const govPensionAnnual = p.govMonthlyPension * 12;
+  const annualRetExp = p.monthlyRetirementExpenses * 12;
+  const annualRental2 = p.monthlyRentalIncome * 12;
+  const netExpWithPension = Math.max(0, annualRetExp - annualRental2 - govPensionAnnual);
+  const fireWithPension = netExpWithPension * 25;
+  const govGap = Math.max(0, p.govRetirementAge - p.targetRetirementAge);
+  const contribPct = p.targetContributionYears > 0 ? Math.min(100, p.contributionYears / p.targetContributionYears * 100) : 0;
+  const yearsLeft = Math.max(0, p.targetContributionYears - p.contributionYears);
+  document.getElementById('gov-ret-age').textContent = p.govRetirementAge;
+  document.getElementById('gov-monthly-pension').textContent = '€'+fmt(p.govMonthlyPension);
+  document.getElementById('gov-annual-pension').textContent = '€'+fmt(govPensionAnnual);
+  document.getElementById('gov-contrib-label').textContent = p.contributionYears+' / '+p.targetContributionYears+' years';
+  document.getElementById('gov-contrib-pct').textContent = pct(contribPct);
+  document.getElementById('gov-contrib-bar').style.width = Math.min(100,contribPct)+'%';
+  document.getElementById('gov-years-left').textContent = yearsLeft;
+  document.getElementById('gov-fire-without').textContent = '€'+fmt(c.fireNum);
+  document.getElementById('gov-fire-with').textContent = '€'+fmt(fireWithPension);
+  document.getElementById('gov-fire-saving').textContent = '€'+fmt(Math.max(0,c.fireNum-fireWithPension));
+  document.getElementById('gov-gap').textContent = govGap+' years';
+  document.getElementById('gov-gap').style.color = govGap > 10 ? 'var(--red)' : govGap > 5 ? 'var(--fire)' : 'var(--green)';
 
   projData = c.proj;
   renderProjectionChart();
@@ -628,6 +736,10 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   const p = Object.fromEntries([...fd.entries()].map(([k,v]) => [k, isNaN(+v)||k==='notes'?v:+v]));
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
   p.inflation = (+fd.get('inflation')) / 100;
+  p.govRetirementAge = +fd.get('govRetirementAge');
+  p.govMonthlyPension = +fd.get('govMonthlyPension');
+  p.contributionYears = +fd.get('contributionYears');
+  p.targetContributionYears = +fd.get('targetContributionYears');
   try {
     const r = await fetch('/api/save-profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) });
     const btn = document.getElementById('save-btn');
@@ -642,6 +754,10 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   for (const [k,v] of fd.entries()) p[k] = isNaN(+v)||k==='notes'?v:+v;
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
   p.inflation = (+fd.get('inflation')) / 100;
+  p.govRetirementAge = +fd.get('govRetirementAge');
+  p.govMonthlyPension = +fd.get('govMonthlyPension');
+  p.contributionYears = +fd.get('contributionYears');
+  p.targetContributionYears = +fd.get('targetContributionYears');
 
   const btn = document.getElementById('analyze-btn');
   const status = document.getElementById('analyze-status');
@@ -657,6 +773,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     document.getElementById('ai-fire-plan').innerHTML = data.firePlan || '';
     document.getElementById('ai-stocks').innerHTML = data.stocks || '';
     document.getElementById('ai-real-estate').innerHTML = data.realEstate || '';
+    document.getElementById('ai-gov-retirement').innerHTML = data.govRetirement || '';
     if (data.summary) {
       const banner = document.querySelector('.summary-banner');
       if (banner) { banner.querySelector('.ai-section').innerHTML = data.summary; }

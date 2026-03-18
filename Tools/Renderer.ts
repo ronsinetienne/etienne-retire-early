@@ -212,10 +212,8 @@ export function renderDashboard(
           <label>Legal Retirement Age</label>
           <input type="number" name="govRetirementAge" value="${profile.govRetirementAge}" min="50" max="75">
         </div>
-        <div class="form-group">
-          <label>Estimated Monthly State Pension ${currency}</label>
-          <div class="input-prefix"><span>${currency}</span><input type="number" name="govMonthlyPension" value="${profile.govMonthlyPension}" min="0"></div>
-        </div>
+        <!-- govMonthlyPension hidden — now calculated from SAM + Agirc-Arrco points -->
+        <input type="hidden" name="govMonthlyPension" value="${profile.govMonthlyPension}">
         <div class="form-group">
           <label>Contribution Years (so far)</label>
           <input type="number" name="contributionYears" value="${profile.contributionYears}" min="0" max="50">

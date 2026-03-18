@@ -21,6 +21,9 @@ try {
   }
 } catch { /* .env is optional */ }
 
+const hasKey = !!(process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY);
+console.log(`🔑 ANTHROPIC_API_KEY: ${hasKey ? '✅ loaded' : '❌ NOT FOUND — check .env'}`);
+
 const port = Number(process.env.PORT) || Number(process.env.PREVIEW_PORT) || config.port;
 
 const server = Bun.serve({
@@ -56,6 +59,8 @@ const server = Bun.serve({
         const body = await req.json() as UserProfile;
         saveProfile(body);
         const calc = calculate(body);
+        const key = process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY;
+        console.log(`🔍 /api/analyze — API key present: ${!!key} — key prefix: ${key ? key.slice(0,20)+'...' : 'NONE'}`);
         const analysis = await analyzeProfile(body, calc);
         saveAnalysis(analysis as any);
         return Response.json(analysis);

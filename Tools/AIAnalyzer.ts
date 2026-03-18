@@ -17,7 +17,7 @@ function fmt(n: number): string {
 }
 
 export async function analyzeProfile(profile: UserProfile, calc: FireResult): Promise<AIAnalysis> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return fallbackAnalysis(calc);
   }
@@ -219,8 +219,8 @@ Score de faisabilité global: X/10 avec justification détaillée.`;
 
   try {
     const response = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 8000,
+      model: 'claude-haiku-4-5',
+      max_tokens: 6000,
       messages: [{ role: 'user', content: prompt }],
     });
 

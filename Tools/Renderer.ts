@@ -1261,6 +1261,24 @@ function renderLifetimePensionTable() {
   // Scenario E: wait until 67 — taux plein automatique, extra 2yr bridge cost
   const wait67ExtraCost = (profile.monthlyRetirementExpenses || 0) * 24;
 
+  // Scenario F: CVV during bridge (C) + claim at 67 (taux plein automatique)
+  // Key insight: at 67, décote RATE = 0% guaranteed regardless of quarters.
+  // BUT the CNAV proportion (quarters/trimestresRequis) still applies to the base pension.
+  // Agirc is unaffected by missing quarters — it's points-based.
+  // So: CNAV = baseMonthly × (min(cvvQuarters, trimRequis)/trimRequis), Agirc unchanged.
+  const agircMonthlyF = agircMonthly; // same Agirc — no new points after retirement
+  const qtrsWithCvv = Math.min(calc.quartersAtRetirement + cvvQ, calc.trimestresRequis || 172);
+  const baseMonthlyF = Math.round(baseMonthly * (qtrsWithCvv / (calc.trimestresRequis || 172)) / (Math.min(calc.quartersAtRetirement, calc.trimestresRequis || 172) / (calc.trimestresRequis || 172)));
+  // Simpler: base at taux plein auto = pensionBaseMonthly corrected for proportion only (no rate décote)
+  const pensionF = Math.round(
+    (baseMonthly > 0
+      ? (baseMonthly / (1 - decoteRaw)) * (qtrsWithCvv / (calc.trimestresRequis || 172))  // undo décote on rate, apply proportion
+      : 0)
+    + agircMonthlyF
+  );
+  // Cost = CVV only (bridge 60-67 already planned — no extra 2yr cost vs base plan)
+  const scenFCost = cvvCostTotal;
+
   function breakEvenAge(sPension, sCost, sClaimAge) {
     if (sPension <= pensionReduced && sClaimAge <= profile.govRetirementAge) return '—';
     for (let age = Math.max(sClaimAge, profile.govRetirementAge); age <= 110; age++) {
@@ -1289,6 +1307,9 @@ function renderLifetimePensionTable() {
     { label: 'E — Wait until 67 (taux plein automatique)', pension: pensionFull, claimAge: 67,
       cost: wait67ExtraCost, color: 'var(--fire)',
       decote: '0%', tag: '✓ TAUX PLEIN' },
+    { label: \`F — CVV \${gapYears} yrs + claim at 67 (taux plein auto)\`, pension: pensionF, claimAge: 67,
+      cost: scenFCost, color: '#f39c12',
+      decote: '0% (auto)', tag: \`✓ ~taux plein · CVV cost only €\${scenFCost.toLocaleString('fr-FR')}\` },
   ];
 
   // Find best scenario per age column (highest net total)
@@ -1387,6 +1408,14 @@ function renderLifetimePensionTable() {
           But requires funding 2 extra bridge years beyond your plan: ~€\${wait67ExtraCost.toLocaleString('fr-FR')} additional capital needed.
           Pension: €\${Math.round(pensionFull).toLocaleString('fr-FR')}/month from age 67.
           <br><em style="color:var(--muted);">Simple, free, and risk-free — but you give up pension income from age 65–67 and need more capital.</em>
+        </div>
+        <div style="padding:10px;border-left:3px solid #f39c12;background:rgba(243,156,18,0.06);">
+          <strong style="color:#f39c12;">F — CVV during bridge + claim at 67 (taux plein automatique):</strong>
+          The <strong>best value scenario</strong>. Pay CVV (~€2,000/yr × \${gapYears} yrs = €\${cvvCostTotal.toLocaleString('fr-FR')} total) during your bridge period,
+          then claim at 67 where taux plein is <em>automatic</em> — the 0% décote rate is guaranteed by law regardless of missing quarters.
+          The CVV quarters improve your CNAV proportion slightly (from \${calc.quartersAtRetirement} → \${Math.min(calc.quartersAtRetirement + cvvQ, calc.trimestresRequis||172)}/\${calc.trimestresRequis||172}).
+          Estimated pension: <strong>~€\${Math.round(pensionF).toLocaleString('fr-FR')}/month</strong> — nearly identical to full taux plein for only €\${cvvCostTotal.toLocaleString('fr-FR')} vs €\${rachatCostNet.toLocaleString('fr-FR')} for rachat.
+          <br><em style="color:var(--muted);">⚠️ Enroll CVV within 6 months of retiring (form S3705 at CPAM). No rachat needed — save ~€\${rachatCostNet.toLocaleString('fr-FR')} net.</em>
         </div>
       </div>
     </div>

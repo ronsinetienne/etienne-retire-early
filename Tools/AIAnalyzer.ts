@@ -92,7 +92,8 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   const stocksAtRetirement = Math.round((profile.stockPortfolio||0) * Math.pow(1 + r, yearsToRetirement));
   const totalCapital    = saleProceeds + (profile.currentSavings||0) + stocksAtRetirement;
   const bridgeTotal     = (profile.monthlyRetirementExpenses||0) * 12 * gapYears;
-  const capitalAtPension = Math.round(totalCapital - bridgeTotal + totalCapital * 0.03 * gapYears * 0.5);
+  const br = profile.bridgeReturn ?? 0.03;
+  const capitalAtPension = Math.round(totalCapital - bridgeTotal + totalCapital * br * gapYears * 0.5);
   // Use precise values from calculator
   const missingAtRetirement = calc.missingQuarters;
   const decotePct       = (missingAtRetirement * 1.25).toFixed(1);
@@ -116,7 +117,7 @@ ${ctx}`;
 
 Return JSON with exactly 2 keys:
 
-"summary": HTML with: (1) capital table — house sale ${fmt(saleProceedsFull)} − gift ${fmt(giftToKids)} = ${fmt(saleProceeds)}, stocks ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}. (2) bridge table — ${fmt(profile.monthlyRetirementExpenses||0)}/mo × ${gapYears*12} months = ${fmt(bridgeTotal)}. (3) capital at ${profile.govRetirementAge} at 0%/3%/4% return. (4) at ${profile.govRetirementAge}: +inheritance ${fmt(profile.inheritanceAmount||0)} +pension ${fmt(pensionFull)}/mo. (5) 2 urgent actions.
+"summary": HTML with: (1) capital table — house sale ${fmt(saleProceedsFull)} − gift ${fmt(giftToKids)} = ${fmt(saleProceeds)}, stocks ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}. (2) bridge table — ${fmt(profile.monthlyRetirementExpenses||0)}/mo × ${gapYears*12} months = ${fmt(bridgeTotal)}. (3) capital at ${profile.govRetirementAge} at 0%/${(br*100).toFixed(0)}%/${(br*100+1).toFixed(0)}% bridge return. (4) at ${profile.govRetirementAge}: +inheritance ${fmt(profile.inheritanceAmount||0)} +pension ${fmt(pensionFull)}/mo. (5) 2 urgent actions.
 
 "realism": HTML 3-row table: scenario(optimistic/realistic/pessimistic) | monthly budget | capital at ${profile.govRetirementAge} | verdict. End with score /10.`;
 
@@ -125,7 +126,7 @@ Return JSON with exactly 2 keys:
 
 Return JSON with exactly 1 key:
 
-"firePlan": HTML year-by-year table columns: Year|Age|Event|Capital Start|Withdrawals|Return 3%|Capital End. Rows: ${yearsToRetirement} working years (capital grows, no withdrawal), then ${gapYears} bridge years at −${fmt(profile.monthlyRetirementExpenses||0)}/mo, then 3 post-pension years. Capital at retirement = ${fmt(totalCapital)}. Mark inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. After table: 3-line recommended investment split for ${fmt(totalCapital)}.`;
+"firePlan": HTML year-by-year table columns: Year|Age|Event|Capital Start|Withdrawals|Return ${(br*100).toFixed(0)}%|Capital End. Rows: ${yearsToRetirement} working years (capital grows at ${((profile.estimatedReturn||0.07)*100).toFixed(0)}%, no withdrawal), then ${gapYears} bridge years at −${fmt(profile.monthlyRetirementExpenses||0)}/mo using bridge return ${(br*100).toFixed(0)}%, then 3 post-pension years. Capital at retirement = ${fmt(totalCapital)}. Mark inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. After table: 3-line recommended investment split for ${fmt(totalCapital)}.`;
 
   // ── CALL C: stocks + realEstate ──────────────────────────────────────────
   const promptC = `${BASE}

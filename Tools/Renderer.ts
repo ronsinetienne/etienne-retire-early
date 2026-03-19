@@ -200,8 +200,18 @@ export function renderDashboard(
           <div class="input-prefix"><span>${currency}</span><input type="number" name="monthlyRetirementExpenses" value="${profile.monthlyRetirementExpenses}" min="0"></div>
         </div>
         <div class="form-group">
-          <label>Expected Annual Return %</label>
+          <label>Expected Annual Return % <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(pre-retirement)</span></label>
           <input type="number" name="estimatedReturn" value="${(profile.estimatedReturn * 100).toFixed(1)}" step="0.1" min="0" max="20">
+        </div>
+        <div class="form-group">
+          <label>Bridge Period Return % <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(during drawdown)</span></label>
+          <input type="number" name="bridgeReturn" value="${((profile.bridgeReturn ?? 0.03) * 100).toFixed(1)}" step="0.1" min="0" max="20">
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;line-height:1.45;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:4px;border-left:2px solid var(--muted);">
+            💡 <strong>Why 3% is recommended:</strong> During the bridge phase (age ${profile.targetRetirementAge}–${profile.govRetirementAge}) you are spending down capital at −€${((profile.monthlyRetirementExpenses||0)*12).toLocaleString('fr-FR')}/yr.
+            A conservative portfolio (50% bonds/cash + 50% equities) typically returns 3–4%.
+            Using the full ${(profile.estimatedReturn*100).toFixed(0)}% growth rate here would overestimate remaining capital — at that point you cannot afford to be 100% in stocks.
+            <strong>Pre-retirement</strong>: ${(profile.estimatedReturn*100).toFixed(0)}% (growth ETFs, long horizon). <strong>Bridge drawdown</strong>: 3% (balanced, capital preservation).
+          </div>
         </div>
         <div class="form-group">
           <label>Inflation %</label>
@@ -999,6 +1009,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   const fd = new FormData(document.getElementById('profile-form'));
   const p = Object.fromEntries([...fd.entries()].map(([k,v]) => [k, isNaN(+v)||k==='notes'?v:+v]));
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
+  p.bridgeReturn = (+fd.get('bridgeReturn')) / 100 || 0.03;
   p.inflation = (+fd.get('inflation')) / 100;
   p.govRetirementAge = +fd.get('govRetirementAge');
   p.govMonthlyPension = +fd.get('govMonthlyPension');
@@ -1019,6 +1030,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   const p = {};
   for (const [k,v] of fd.entries()) p[k] = isNaN(+v)||k==='notes'?v:+v;
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
+  p.bridgeReturn = (+fd.get('bridgeReturn')) / 100 || 0.03;
   p.inflation = (+fd.get('inflation')) / 100;
   p.govRetirementAge = +fd.get('govRetirementAge');
   p.govMonthlyPension = +fd.get('govMonthlyPension');

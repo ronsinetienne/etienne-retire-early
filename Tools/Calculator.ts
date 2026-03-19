@@ -18,7 +18,8 @@ export interface UserProfile {
   inheritanceAge: number;         // age at which inheritance is received
   targetRetirementAge: number;
   monthlyRetirementExpenses: number;
-  estimatedReturn: number; // e.g. 0.07 for 7%
+  estimatedReturn: number; // e.g. 0.07 for 7% — growth phase (pre-retirement)
+  bridgeReturn: number;    // e.g. 0.03 for 3% — conservative return during bridge drawdown
   inflation: number;       // e.g. 0.02 for 2%
   notes: string;
   // Government retirement

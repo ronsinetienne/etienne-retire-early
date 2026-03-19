@@ -107,76 +107,84 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
     yearsToRetirement, ageActuel, stocksAtRetirement, totalCapital, pensionFull, pensionReduced,
     missingAtRetirement, decotePct, trimestresRequis, quartersAtRetirement);
 
-  // ── CALL 1: Financial plan (summary + firePlan + stocks + realEstate + realism) ─────────
-  const prompt1 = `You are a retirement financial advisor. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Each JSON value MUST be a plain HTML string, never a nested object.
+  const BASE = `You are a retirement financial advisor. Reply ONLY with valid compact JSON (no markdown, no extra text). ENGLISH. Every JSON value MUST be a plain HTML string — never a nested object or array.
+
+${ctx}`;
+
+  // ── CALL A: summary + realism (short sections) ───────────────────────────
+  const promptA = `${BASE}
+
+Return JSON with exactly 2 keys:
+
+"summary": HTML with: (1) capital table — house sale ${fmt(saleProceedsFull)} − gift ${fmt(giftToKids)} = ${fmt(saleProceeds)}, stocks ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}. (2) bridge table — ${fmt(profile.monthlyRetirementExpenses||0)}/mo × ${gapYears*12} months = ${fmt(bridgeTotal)}. (3) capital at ${profile.govRetirementAge} at 0%/3%/4% return. (4) at ${profile.govRetirementAge}: +inheritance ${fmt(profile.inheritanceAmount||0)} +pension ${fmt(pensionFull)}/mo. (5) 2 urgent actions.
+
+"realism": HTML 3-row table: scenario(optimistic/realistic/pessimistic) | monthly budget | capital at ${profile.govRetirementAge} | verdict. End with score /10.`;
+
+  // ── CALL B: firePlan (year-by-year — dedicated call for length) ──────────
+  const promptB = `${BASE}
+
+Return JSON with exactly 1 key:
+
+"firePlan": HTML year-by-year table columns: Year|Age|Event|Capital Start|Withdrawals|Return 3%|Capital End. Rows: ${yearsToRetirement} working years (capital grows, no withdrawal), then ${gapYears} bridge years at −${fmt(profile.monthlyRetirementExpenses||0)}/mo, then 3 post-pension years. Capital at retirement = ${fmt(totalCapital)}. Mark inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. After table: 3-line recommended investment split for ${fmt(totalCapital)}.`;
+
+  // ── CALL C: stocks + realEstate ──────────────────────────────────────────
+  const promptC = `${BASE}
+
+Return JSON with exactly 2 keys:
+
+"stocks": HTML table: Allocation%|ETF Product|ISIN|Amount €|Est. Monthly Income. Include 4–5 ETFs, recommended platform (PEA/CTO/Assurance-vie), tax note.
+
+"realEstate": HTML with: (1) sale calculation table — ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − agency 4% ${fmt(Math.round((profile.realEstateValue||0)*0.04))} − diagnostics €1,000 − gift ${fmt(giftToKids)} = net ${fmt(saleProceeds)}. Note: notary fees paid by BUYER. (2) stock portfolio grows from ${fmt(profile.stockPortfolio||0)} to ${fmt(stocksAtRetirement)} over ${yearsToRetirement} yrs at ${((profile.estimatedReturn||0.07)*100).toFixed(0)}%. (3) Bretagne free housing value. (4) Best timing advice to sell.`;
+
+  // ── CALL D: govRetirement (French pension scenarios) ─────────────────────
+  const promptD = `You are a French retirement law expert. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Every JSON value MUST be a plain HTML string — never a nested object.
 
 ${ctx}
 
-Return JSON with exactly these 5 keys (each value = plain HTML string):
+Pre-calculated numbers — use exactly:
+- Taux plein pension: ${fmt(pensionFull)}/mo | With décote (do nothing): ${fmt(pensionReduced)}/mo | Monthly loss: ${fmt(pensionFull-pensionReduced)}/mo
+- Quarters at retirement: ${quartersAtRetirement}/${trimestresRequis} required | Missing: ${missingAtRetirement} | Décote: ${decotePct}%
+${(profile.salaireMoyen||0)>0?`- CNAV ${fmt(calc.pensionBaseMonthly||0)}/mo + Agirc ${fmt(calc.pensionAgircMonthly||0)}/mo = ${fmt(pensionFull)}/mo`:''}
 
-"summary": Capital breakdown table: house sale ${fmt(saleProceedsFull)} − gift to kids ${fmt(giftToKids)} = ${fmt(saleProceeds)}, stocks grew to ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}. Bridge table: ${fmt(profile.monthlyRetirementExpenses||0)}/mo × ${gapYears*12}mo = ${fmt(bridgeTotal)}. Show capital at ${profile.govRetirementAge} at 0%/3%/4% return. At ${profile.govRetirementAge}: + inheritance ${fmt(profile.inheritanceAmount||0)} + pension ${fmt(pensionFull)}/mo. 2 urgent actions.
+Return JSON with 1 key:
 
-"firePlan": Year-by-year table (Year|Age|Event|Capital Start|Expenses|Capital End). ${yearsToRetirement} pre-retirement yrs + ${gapYears} bridge yrs + 3 post-pension yrs. Capital starts at ${fmt(totalCapital)}, depletes at ${fmt(profile.monthlyRetirementExpenses||0)}/month with 3% return. Inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. After table: 3-line investment split for ${fmt(totalCapital)}.
-
-"stocks": Table: allocation%|product|amount|monthly income. ETFs with ISIN. Platforms.
-
-"realEstate": Table: sale price ${fmt(profile.realEstateValue||0)} − mortgage ${fmt(profile.mortgageRemaining||0)} − agency fees 4% ${fmt(Math.round((profile.realEstateValue||0)*0.04))} − diagnostics €1,000 − gift to kids ${fmt(giftToKids)} = net ${fmt(saleProceeds)}. Clarify: notary fees (frais de notaire ~7-8%) are paid by the BUYER not the seller. Stocks: ${fmt(profile.stockPortfolio||0)} growing to ${fmt(stocksAtRetirement)} in ${yearsToRetirement} yrs. Bretagne free housing saving. Best timing to sell.
-
-"realism": 3-row table (optimistic/realistic/pessimistic|monthly budget|capital at ${profile.govRetirementAge}|verdict). Score /10.`;
-
-  // ── CALL 2: French retirement scenarios (govRetirement only) ──────────────────────────────
-  const prompt2 = `You are a French retirement law expert. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Use HTML tables. Max 400 words total. The JSON value for "govRetirement" MUST be a plain HTML string, NOT a nested object.
-
-${ctx}
-
-Key numbers (already calculated — use these exactly):
-- Full pension (taux plein): ${fmt(pensionFull)}/month
-- Pension with decote (do nothing): ${fmt(pensionReduced)}/month
-- Monthly pension loss from decote: ${fmt(pensionFull - pensionReduced)}/month for life
-- Quarters at retirement: ${quartersAtRetirement}/${trimestresRequis} required, missing: ${missingAtRetirement}, decote: ${decotePct}%
-${(profile.salaireMoyen||0) > 0 ? `- Base pension breakdown: CNAV ${fmt(calc.pensionBaseMonthly||0)}/mo + Agirc-Arrco ${fmt(calc.pensionAgircMonthly||0)}/mo = ${fmt(pensionFull)}/mo total` : ''}
-
-Return JSON with 1 key — value MUST be a plain HTML string:
-
-"govRetirement": Build ONE comparison table: Scenario|Quarters at claim|Missing|Decote%|Monthly pension|Strategy cost|Net cost after tax|20yr pension total|Verdict
-
-Row A — Do nothing: ${quartersAtRetirement} quarters, ${missingAtRetirement} missing, -${decotePct}%, ${fmt(pensionReduced)}/mo, €0, 20yr=${fmt(pensionReduced*12*20)}.
-Row B — Buy back 12 quarters (Art.L351-14-1, BEFORE retiring): ${quartersAtRetirement+12} quarters, missing=${Math.max(0,trimestresRequis-quartersAtRetirement-12)}, new decote=${(Math.max(0,trimestresRequis-quartersAtRetirement-12)*1.25).toFixed(1)}%, pension=${fmt(Math.round(pensionFull*(1-Math.max(0,trimestresRequis-quartersAtRetirement-12)*0.0125)))}/mo, cost €48,000 (net after 30% tax saving = €33,600), 20yr total, breakeven age.
-Row C — CVV ${gapYears} yrs × 4 qtrs = ${gapYears*4} extra quarters: ${quartersAtRetirement+gapYears*4} quarters, missing=${Math.max(0,trimestresRequis-quartersAtRetirement-gapYears*4)}, decote=${(Math.max(0,trimestresRequis-quartersAtRetirement-gapYears*4)*1.25).toFixed(1)}%, pension, cost €${1500*gapYears}, 20yr total, breakeven age.
-Row D — Combine B+C: ${quartersAtRetirement+12+gapYears*4} quarters vs ${trimestresRequis} required → ${quartersAtRetirement+12+gapYears*4>=trimestresRequis?'TAUX PLEIN':'still short'}, pension ${fmt(pensionFull)}/mo, total cost €${fmt(48000+1500*gapYears)}, net after tax, 20yr=${fmt(pensionFull*12*20)}.
-Row E — Wait until 67 (taux plein automatique, no quarters needed): 0% decote GUARANTEED, ${fmt(pensionFull)}/mo, extra 2 yrs capital needed ${fmt((profile.monthlyRetirementExpenses||0)*24)}, 20yr=${fmt(pensionFull*12*20)}.
-
-After table: RECOMMENDATION (which scenario maximises net lifetime income). Note Agirc-Arrco solidarity coefficient: -10% for 3 years if pension claimed before 63.`;
+"govRetirement": HTML table — Scenario|Qtrs at claim|Missing|Décote|Monthly €|Cost|Net cost (−30% tax)|20yr total|Verdict
+A-Do nothing: ${quartersAtRetirement}q, ${missingAtRetirement} missing, −${decotePct}%, ${fmt(pensionReduced)}/mo, €0, 20yr=${fmt(pensionReduced*12*20)}
+B-Rachat 12q: ${quartersAtRetirement+12}q, ${Math.max(0,trimestresRequis-quartersAtRetirement-12)} missing, −${(Math.max(0,trimestresRequis-quartersAtRetirement-12)*1.25).toFixed(1)}%, ${fmt(Math.round(pensionFull*(1-Math.max(0,trimestresRequis-quartersAtRetirement-12)*0.0125)))}/mo, €54k gross/€38k net, 20yr+breakeven
+C-CVV ${gapYears}yrs: ${quartersAtRetirement+gapYears*4}q, ${Math.max(0,trimestresRequis-quartersAtRetirement-gapYears*4)} missing, −${(Math.max(0,trimestresRequis-quartersAtRetirement-gapYears*4)*1.25).toFixed(1)}%, pension/mo, €${gapYears*2000} total, 20yr+breakeven
+D-Rachat+CVV: ${quartersAtRetirement+12+gapYears*4}q vs ${trimestresRequis} → ${quartersAtRetirement+12+gapYears*4>=trimestresRequis?'TAUX PLEIN':'still short'}, ${fmt(pensionFull)}/mo, combined cost, 20yr=${fmt(pensionFull*12*20)}
+E-Wait 67: 0% guaranteed, ${fmt(pensionFull)}/mo, extra bridge ${fmt((profile.monthlyRetirementExpenses||0)*24)}, 20yr=${fmt(pensionFull*12*20)}
+After table: 1-paragraph RECOMMENDATION. Note: Agirc solidarity −10% for 3yr if claimed before 63.`;
 
   try {
-    // Run both API calls in parallel
-    const [result1, result2] = await Promise.all([
-      callAI(client, prompt1),
-      callAI(client, prompt2),
+    // Run all 4 API calls in parallel
+    const [resultA, resultB, resultC, resultD] = await Promise.all([
+      callAI(client, promptA),
+      callAI(client, promptB),
+      callAI(client, promptC),
+      callAI(client, promptD),
     ]);
 
-    console.log('✅ Call1 keys:', Object.keys(result1));
-    console.log('✅ Call2 keys:', Object.keys(result2));
-    console.log('✅ summary type:', typeof result1.summary, '— first 80 chars:', String(result1.summary).slice(0,80));
-    console.log('✅ govRetirement type:', typeof result2.govRetirement, '— first 80 chars:', String(result2.govRetirement).slice(0,80));
+    console.log('✅ CallA keys:', Object.keys(resultA));
+    console.log('✅ CallB keys:', Object.keys(resultB));
+    console.log('✅ CallC keys:', Object.keys(resultC));
+    console.log('✅ CallD keys:', Object.keys(resultD));
 
-    // Flatten nested objects if AI wrapped values inside another object
     const flatten = (v: any): string => {
       if (typeof v === 'string') return v;
       if (!v) return '';
-      // If AI returned an object, join all string values
       const vals = Object.values(v).filter(x => typeof x === 'string') as string[];
       if (vals.length > 0) return vals.join('\n');
       return JSON.stringify(v);
     };
 
     return {
-      summary:       flatten(result1.summary),
-      firePlan:      flatten(result1.firePlan),
-      stocks:        flatten(result1.stocks),
-      realEstate:    flatten(result1.realEstate),
-      realism:       flatten(result1.realism),
-      govRetirement: flatten(result2.govRetirement),
+      summary:       flatten(resultA.summary),
+      realism:       flatten(resultA.realism),
+      firePlan:      flatten(resultB.firePlan),
+      stocks:        flatten(resultC.stocks),
+      realEstate:    flatten(resultC.realEstate),
+      govRetirement: flatten(resultD.govRetirement),
       generatedAt:   new Date().toISOString(),
     };
   } catch (err: any) {

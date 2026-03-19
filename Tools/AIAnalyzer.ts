@@ -104,7 +104,8 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
   const agencyFeeRate   = 0.04;
   const diagnostics     = 1000;
-  const saleProceedsFull = saleNet - Math.round(saleNet * agencyFeeRate) - diagnostics;
+  const agencyFees      = Math.round((profile.realEstateValue||0) * agencyFeeRate); // 4% of SALE PRICE, not equity
+  const saleProceedsFull = saleNet - agencyFees - diagnostics;
   const giftToKids      = profile.giftToChildren || 0;
   const saleProceeds    = saleProceedsFull - giftToKids;
   const ageActuel       = profile.age || 51;
@@ -201,13 +202,27 @@ Return JSON with exactly 2 keys:
 
 Return JSON with exactly 1 key:
 
-"firePlan": HTML year-by-year table columns: Year|Age|Event|Capital Start|Withdrawals|Pension Income|Net Draw|Return ${(br*100).toFixed(0)}%|Capital End.
+"firePlan": HTML with TWO sections:
+
+SECTION 1 — Capital at retirement breakdown table (title: "Capital at Retirement (Age ${profile.targetRetirementAge})"):
+Columns: Source | Gross | Deductions | Net
+Rows (one per line):
+- House sale: Gross=${fmt(profile.realEstateValue||0)} | Deductions=mortgage ${fmt(profile.mortgageRemaining||0)} + agency 4% ${fmt(Math.round((profile.realEstateValue||0)*0.04))} + diagnostics €1,000 | Net=${fmt(saleProceedsFull)}
+- Gift to children: — | — | −${fmt(giftToKids)} (deducted from house proceeds, tax-free)
+- Net house proceeds: — | — | ${fmt(saleProceeds)}
+- Stock portfolio: ${fmt(profile.stockPortfolio||0)} growing at ${((profile.estimatedReturn||0.07)*100).toFixed(0)}%/yr × ${yearsToRetirement} yrs | — | ${fmt(stocksAtRetirement)}
+- Cash savings: — | — | ${fmt(profile.currentSavings||0)}
+- TOTAL INVESTABLE CAPITAL: — | — | ${fmt(totalCapital)}
+Add a note: "Notary fees (frais de notaire) are paid by the BUYER in France — not deducted here."
+
+SECTION 2 — Year-by-year financial plan table (title: "Retirement Financial Plan: Age ${profile.targetRetirementAge} to 70"):
+Columns: Year | Age | Phase | Capital Start | Investment Return (${(br*100).toFixed(0)}%) | Withdrawals | CVV Cost | Pension Income | Net Change | Capital End
 Rows:
-- ${yearsToRetirement} working years: capital grows at ${((profile.estimatedReturn||0.07)*100).toFixed(0)}%, Withdrawals=€0, Pension=€0, Net Draw=€0.
-- ${gapYears} bridge years age ${profile.targetRetirementAge}–${profile.govRetirementAge-1}: SINGLE PHASE, Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension Income=€0 (NO pension during bridge — CNAV+Agirc only start at ${profile.govRetirementAge}), Net Draw=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Return ${(br*100).toFixed(0)}%. Add CVV cost €${cvvAnnualCost}/yr each bridge year as a note.
-- Age ${profile.govRetirementAge}: Event="✅ CNAV+Agirc claimed simultaneously (taux plein auto) + Inheritance ${fmt(profile.inheritanceAmount||0)}", Pension Income=+${fmt(pensionScenF)}/mo (Scenario F: CNAV ${fmt(Math.round(pensionScenF-pensionAgirc))} + Agirc ${fmt(pensionAgirc)}).
-- 3 post-pension years: Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension=${fmt(pensionScenF)}/mo, Net Draw=surplus (pension > expenses = capital grows).
-Capital at retirement = ${fmt(totalCapital)}. Bridge return = ${(br*100).toFixed(0)}%. Mark inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. After table: 3-line recommended investment split for ${fmt(totalCapital)}.`;
+- ${yearsToRetirement} working years (age ${profile.age}–${profile.targetRetirementAge-1}): Phase="Working", Investment Return at ${((profile.estimatedReturn||0.07)*100).toFixed(0)}% (pre-retirement rate), Withdrawals=€0, CVV=€0, Pension=€0, Net Change=+return only.
+- ${gapYears} bridge years (age ${profile.targetRetirementAge}–${profile.govRetirementAge-1}): Phase="Bridge — no pension", Investment Return at ${(br*100).toFixed(0)}% (conservative bridge rate), Withdrawals=${fmt((profile.monthlyRetirementExpenses||0)*12)}/yr, CVV Cost=€${cvvAnnualCost}/yr (Cat.${cvvBracket}, tax-deductible), Pension=€0 (CNAV+Agirc both start at ${profile.govRetirementAge} only), Net Change=Return−Withdrawals−CVV.
+- Age ${profile.govRetirementAge}: Phase="Pension starts", Event="✅ CNAV+Agirc claimed + Inheritance ${fmt(profile.inheritanceAmount||0)}", add inheritance to Capital Start, Pension Income=${fmt(pensionScenF)}/mo gross = ${fmt(pensionScenF*12)}/yr.
+- 3 post-pension years: Phase="Pension", Investment Return at ${(br*100).toFixed(0)}%, Withdrawals=${fmt((profile.monthlyRetirementExpenses||0)*12)}/yr, Pension=${fmt(pensionScenF*12)}/yr, Net Change=Return+Pension−Withdrawals.
+Capital at retirement = ${fmt(totalCapital)}. Inheritance ${fmt(profile.inheritanceAmount||0)} arrives at age ${profile.inheritanceAge||65} — add to that year's Capital Start. All pension figures gross (before income tax). After table: 2-line note on (1) whether gross pension covers expenses, (2) estimated net pension after ~30% tax.`;
 
   // ── CALL C: stocks + realEstate ──────────────────────────────────────────
   const promptC = `${BASE}
@@ -306,7 +321,7 @@ export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, sc
   const br              = profile.bridgeReturn ?? 0.03;
   const monthly         = profile.monthlyRetirementExpenses || 0;
   const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
-  const saleProceedsFull = saleNet - Math.round(saleNet * 0.04) - 1000;
+  const saleProceedsFull = saleNet - Math.round((profile.realEstateValue||0) * 0.04) - 1000; // 4% of sale price
   const saleProceeds    = saleProceedsFull - (profile.giftToChildren||0);
   const stocksAtRetirement = Math.round((profile.stockPortfolio||0) * Math.pow(1+r, yearsToRetirement));
   const totalCapital    = saleProceeds + (profile.currentSavings||0) + stocksAtRetirement;
@@ -391,15 +406,26 @@ Pension from age ${sc.claimAge}: CNAV + Agirc = ${fmt(sc.pension)}/mo gross (bef
 Cost: ${sc.costNote}
 
 Return JSON with exactly 1 key:
-"firePlan": HTML styled table (same dark-theme style as existing page) with title "Retirement Financial Plan: Scenario ${scenario} — ${sc.label}" at top.
-Columns: Year | Age | Event | Capital Start | Withdrawals | Pension Income (gross) | Net Draw | Return ${(br*100).toFixed(0)}% | Capital End.
-Rows:
-- ${sc.workYears} working years (age ${ageActuel}–${sc.stopAge-1}): Withdrawals=€0, Pension=€0, Net Draw=€0, capital grows at ${((r)*100).toFixed(0)}%.
+"firePlan": HTML with TWO sections:
+
+SECTION 1 — Capital at retirement breakdown (title: "Capital at Retirement (Age ${sc.stopAge}) — Scenario ${scenario}"):
+${isGH ? `Note: Scenarios G/H keep working until ${sc.stopAge} — no early house sale. Capital is larger (no bridge drawdown, salary continues). Estimated base capital if house sold at ${retAge}: house net ${fmt(saleProceeds)} + stocks ${fmt(stocksAtRetirement)} = ${fmt(totalCapital)} — actual capital at ${sc.stopAge} would be higher.` : `Columns: Source | Gross | Deductions | Net
+- House sale: ${fmt(profile.realEstateValue||0)} | mortgage ${fmt(profile.mortgageRemaining||0)} + agency 4% ${fmt(Math.round((profile.realEstateValue||0)*0.04))} + diagnostics €1,000 | Net=${fmt(saleProceedsFull)}
+- Gift to children (tax-free): — | — | −${fmt(profile.giftToChildren||0)}
+- Net house proceeds: — | — | ${fmt(saleProceeds)}
+- Stock portfolio at ${sc.stopAge}: ${fmt(profile.stockPortfolio||0)} × (1+${((r)*100).toFixed(0)}%)^${sc.workYears} | — | ${fmt(stocksAtRetirement)}
+- Cash savings: — | — | ${fmt(profile.currentSavings||0)}
+- TOTAL INVESTABLE CAPITAL: — | — | ${fmt(totalCapital)}
+Note: Notary fees paid by BUYER in France. Strategy cost: ${sc.costNote}.`}
+
+SECTION 2 — Year-by-year plan (title: "Retirement Financial Plan: Scenario ${scenario} — ${sc.label}"):
+Columns: Year | Age | Phase | Capital Start | Investment Return | Withdrawals | Strategy Cost | Pension Income (gross) | Net Change | Capital End
+- ${sc.workYears} working years (age ${ageActuel}–${sc.stopAge-1}): Phase="Working", Return at ${((r)*100).toFixed(0)}%/yr, Withdrawals=€0, Strategy Cost=€0, Pension=€0.
 ${sc.bridgeRows}
-- Age ${sc.claimAge}: Event="✅ CNAV+Agirc claimed simultaneously${scenario==='G'||scenario==='H'?' (claim at 67)':''} + Inheritance ${fmt(profile.inheritanceAmount||0)}", Pension Income=+${fmt(sc.pension)}/mo.
-- 3 post-pension years at age ${sc.claimAge}+: show surplus or deficit vs monthly budget.
-After table: 2-line note on (1) whether pension covers monthly budget, (2) strategy cost summary.
-⚠ Note in table header: "Monthly pension figures are GROSS before income tax — deduct ~30% (CSG 8.3% + income tax) for net amount."`;
+- Age ${sc.claimAge}: Phase="Pension starts", add Inheritance ${fmt(profile.inheritanceAmount||0)} to Capital Start, Pension=${fmt(sc.pension)}/mo gross=${fmt(sc.pension*12)}/yr.
+- 3 post-pension years: Phase="Pension", Return at ${(br*100).toFixed(0)}%, Withdrawals=${fmt(monthly*12)}/yr, Pension=${fmt(sc.pension*12)}/yr.
+All pension figures GROSS. Inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}.
+After table: note (1) gross pension vs monthly budget, (2) estimated net pension after ~30% tax (CSG+IR).`;
 
   try {
     const result = await callAI(client, prompt);

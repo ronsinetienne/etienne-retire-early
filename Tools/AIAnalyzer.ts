@@ -146,7 +146,7 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   const bridgePhase2NetMonthly = Math.max(0, (profile.monthlyRetirementExpenses||0) - agircAtLegalAge);
   const bridgeTotal    = (profile.monthlyRetirementExpenses||0) * 12 * yearsBeforeAgirc
                        + bridgePhase2NetMonthly * 12 * yearsAfterAgircBeforePension;
-  const cvvCostTotal   = gapYears * 2000; // ~€2,000/yr CVV contribution
+  const cvvCostTotal   = gapYears * 2160; // ~€2,160/yr CVV (Category 4 minimum, 25% PASS 2026)
 
   // Scenario F CNAV: taux plein auto at 67, with CVV quarters improving proportion
   const qtrsWithCvv    = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);

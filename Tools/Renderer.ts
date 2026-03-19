@@ -685,20 +685,20 @@ export function renderDashboard(
         </div>
 
         <div style="background:var(--bg-card-alt,rgba(255,255,255,0.04));border:1px solid var(--border);border-radius:10px;padding:16px;">
-          <div style="font-weight:700;color:#58a6ff;margin-bottom:10px;font-size:15px;">⏱️ CVV — Assurance Volontaire Vieillesse (Form S3705)</div>
+          <div style="font-weight:700;color:#58a6ff;margin-bottom:10px;font-size:15px;">⏱️ CVV — Assurance Volontaire Vieillesse (Form S1101)</div>
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
             <tr><td style="padding:4px 0;color:var(--muted);width:50%;">Max quarters / year</td><td style="padding:4px 0;font-weight:600;color:var(--text);">4 quarters per calendar year</td></tr>
             <tr><td style="padding:4px 0;color:var(--muted);">Total limit</td><td style="padding:4px 0;color:var(--green);font-weight:600;">No fixed cap — limited only by how long you contribute (e.g. 7 yrs bridge → max 28 quarters)</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Annual cost (2024)</td><td style="padding:4px 0;color:var(--text);">~€1,500–3,400/yr (based on declared income)</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Eligibility</td><td style="padding:4px 0;color:var(--text);">Anyone who stopped working (early retirees, stay-at-home, expats)</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Effect on pension</td><td style="padding:4px 0;color:var(--text);">Adds quarters to retraite de base <strong>only</strong> — does NOT add Agirc-Arrco points</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Tax deduction</td><td style="padding:4px 0;color:var(--text);">Partially deductible (CSG deductible portion ~5.1%)</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Solidarity coeff.</td><td style="padding:4px 0;color:var(--red);">Agirc-Arrco applies −10% penalty for 3 years if pension claimed before age 63</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Deadline</td><td style="padding:4px 0;color:var(--fire);font-weight:600;">Must enroll within 6 months of stopping work (form S3705 to CPAM)</td></tr>
-            <tr><td style="padding:4px 0;color:var(--muted);">Where to apply</td><td style="padding:4px 0;color:var(--text);">CPAM (Caisse d'Assurance Maladie) — form S3705</td></tr>
+            <tr><td style="padding:4px 0;color:var(--muted);">Annual cost 2026 (4 brackets)</td><td style="padding:4px 0;color:var(--text);">Cat.4 min: <strong>~€2,160/yr</strong> (25% PASS) · Cat.3: ~€4,316 · Cat.2: ~€6,474 · Cat.1: ~€8,632 (100% PASS = high salary). Most early retirees choose Cat.4 to minimise cost while still validating 4 full quarters.</td></tr>
+            <tr><td style="padding:4px 0;color:var(--muted);">⚠️ Eligibility</td><td style="padding:4px 0;color:var(--text);">People who stopped working AND are <strong>not yet eligible to claim any pension</strong>. If you already qualify for early retirement (carrière longue etc.), you may be excluded. Confirm with your CPAM/CARSAT.</td></tr>
+            <tr><td style="padding:4px 0;color:var(--muted);">Effect on pension</td><td style="padding:4px 0;color:var(--text);">Adds quarters to CNAV (retraite de base) + improves SAM reference salary — does NOT add Agirc-Arrco points</td></tr>
+            <tr><td style="padding:4px 0;color:var(--muted);">Tax deduction</td><td style="padding:4px 0;color:var(--text);">Fully deductible from overall income ("revenu imposable") — effective after-tax cost ~30–45% less</td></tr>
+            <tr><td style="padding:4px 0;color:var(--green);font-weight:600;">Solidarity coeff.</td><td style="padding:4px 0;color:var(--green);font-weight:600;">✅ ABOLISHED Dec 1, 2023 — no longer applies to anyone retiring from that date</td></tr>
+            <tr><td style="padding:4px 0;color:var(--muted);">⚠️ Enroll deadline</td><td style="padding:4px 0;color:var(--fire);font-weight:600;">Must enroll within 6 months of stopping work — form S1101 (Cerfa n°59941) to your local CPAM</td></tr>
+            <tr><td style="padding:4px 0;color:var(--muted);">Where to apply</td><td style="padding:4px 0;color:var(--text);">CPAM (Caisse d'Assurance Maladie) — form <strong>S1101</strong> · Contributions paid quarterly via Urssaf</td></tr>
           </table>
           <div style="margin-top:10px;padding:8px;background:rgba(88,166,255,0.1);border-radius:6px;font-size:12px;color:#58a6ff;">
-            💡 <strong>Key difference vs Rachat:</strong> CVV is paid year-by-year during your bridge period (cheap and flexible). Rachat is a one-time lump sum before retiring (expensive but immediate). Both only affect base pension — Agirc-Arrco points are earned only through salaried work.
+            💡 <strong>CVV vs Rachat:</strong> CVV validates future quarters year-by-year at €2,160–€8,632/yr (flexible, no cap, also improves SAM). Rachat buys past periods as a lump sum — max 12 quarters lifetime, often €4,000–€5,000/quarter. Both only affect CNAV — Agirc points require active salaried employment.
           </div>
         </div>
 
@@ -708,11 +708,21 @@ export function renderDashboard(
         <strong style="color:#bc8cff;">📌 Key rule summary for your situation (retire at 60, pension at 67):</strong>
         <ul style="margin:8px 0 0 0;padding-left:20px;color:var(--text);line-height:1.8;">
           <li><strong>Rachat max = 12 quarters</strong> (≈ 3 years) — apply now (before 60), costs ~€42k–€60k gross, ~€30k–€42k after tax deduction</li>
-          <li><strong>CVV for 7 bridge years = 28 quarters</strong> — enroll within 6 months of stopping work, ~€1,500/yr × 7 = ~€10,500 total</li>
+          <li><strong>CVV for 7 bridge years = 28 quarters</strong> — enroll within 6 months of stopping work, ~€2,160/yr min × 7 = ~€15,120 (Category 4, before tax deduction)</li>
           <li><strong>Combine both (B+C)</strong>: 28 + 12 = 40 additional quarters — check if this reaches your taux plein threshold</li>
-          <li><strong>Agirc-Arrco solidarity coefficient</strong>: −10% for 3 years if you claim before age 63 — consider claiming at 63 even with décote to avoid this penalty</li>
+          <li><strong>Agirc-Arrco solidarity malus: ABOLISHED Dec 2023 ✅</strong> — no longer any timing penalty. Claim Agirc at your legal retirement age (<strong>64</strong> for born 1974) for full rate with zero reduction (no permanent minoration viagère)</li>
           <li><strong>Wait until 67 (taux plein automatique)</strong>: guaranteed 0% décote regardless of quarters — no cost, but 7 more bridge years to fund</li>
         </ul>
+      </div>
+      <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;font-size:11.5px;color:var(--muted);line-height:1.8;">
+        <strong style="color:var(--text);">📎 Sources vérifiées :</strong>
+        <a href="https://www.ameli.fr/assure/droits-demarches/invalidite-handicap/assurance-volontaire-invalidite-vieillesse-veuvage" target="_blank" style="color:#58a6ff;text-decoration:none;">ameli.fr — CVV (S1101)</a> ·
+        <a href="https://altis-conseil.fr/cotisation-volontaire-retraite/" target="_blank" style="color:#58a6ff;text-decoration:none;">altis-conseil.fr — Coûts 2026</a> ·
+        <a href="https://www.service-public.fr/particuliers/vosdroits/F15675" target="_blank" style="color:#58a6ff;text-decoration:none;">service-public.fr — Rachat (max 12q)</a> ·
+        <a href="https://www.agirc-arrco.fr/nous-connaitre/nos-actualites/fin-du-malus-agirc-arrco-ce-1er-avril/" target="_blank" style="color:#58a6ff;text-decoration:none;">agirc-arrco.fr — Malus aboli</a> ·
+        <a href="https://www.service-public.fr/particuliers/vosdroits/F15396" target="_blank" style="color:#58a6ff;text-decoration:none;">service-public.fr — Agirc-Arrco règles</a> ·
+        <a href="https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006073189/LEGISCTA000006156754/" target="_blank" style="color:#58a6ff;text-decoration:none;">Légifrance — Art. R742-1 à R742-39</a> ·
+        <a href="https://www.urssaf.fr/accueil/employeur/cotisations/base-forfaitaire-franchise-cotis/assures-volontaires.html" target="_blank" style="color:#58a6ff;text-decoration:none;">urssaf.fr — Assurés volontaires</a>
       </div>
     </div>
 
@@ -742,7 +752,7 @@ export function renderDashboard(
       </table>
       </div>
       <p style="font-size:11px;color:var(--muted);margin-top:8px;">
-        * Net cost = after 30% income tax deduction on rachat de trimestres. Agirc-Arrco −10% solidarity coefficient applied for 3 years if pension claimed before age 63.
+        * Net cost = after 30% income tax deduction on rachat de trimestres. CVV contributions also fully deductible from income. Agirc-Arrco solidarity malus ABOLISHED Dec 1, 2023 — no longer applicable.
         All values in today's euros (not inflation-adjusted).
       </p>
       <div id="pension-strategy-analysis" style="margin-top:20px;"></div>
@@ -1448,12 +1458,14 @@ function renderLifetimePensionTable() {
         <div style="display:flex;gap:12px;align-items:flex-start;">
           <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">3</span>
           <div><strong style="color:var(--text);">Within 6 months of retiring (age 60) — Enroll in CVV if choosing C or D:</strong><br>
-          File form S3705 with your CPAM (Caisse Primaire d'Assurance Maladie). <strong style="color:var(--red);">This is a hard deadline — missing it means losing all CVV quarters.</strong> Pay ~€2,000/year for \${gapYears} years. Confirm each year to maintain enrollment.</div>
+          File form <strong>S1101</strong> (Cerfa n°59941) with your CPAM. <strong style="color:var(--red);">This is a hard deadline — missing it means losing all CVV quarters.</strong> Cost: ~€2,160/yr minimum (Category 4, 25% PASS) up to ~€8,632/yr (Category 1). Contributions are fully tax-deductible. Pay quarterly via Urssaf.</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start;">
           <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">4</span>
-          <div><strong style="color:var(--text);">Age 63 — Claim Agirc-Arrco pension (complementary):</strong><br>
-          If you claim Agirc-Arrco before age 63, a solidarity coefficient of −10% applies for 3 years. Wait until exactly 63 to avoid this penalty — it costs you \${3*12} months × €\${Math.round(agircMonthly*0.1).toLocaleString('fr-FR')}/month = ~€\${Math.round(agircMonthly*0.1*36).toLocaleString('fr-FR')} if you claim too early.</div>
+          <div><strong style="color:var(--text);">Age 64 — Claim Agirc-Arrco pension (complementary) at legal retirement age:</strong><br>
+          File your Agirc-Arrco claim at age 64 (legal retirement age for born 1974 under 2023 reform). At this age you receive the <strong>full Agirc amount with zero reduction</strong> — no permanent minoration viagère.
+          ✅ The solidarity malus (−10% for 3 years) was <strong>abolished Dec 1, 2023</strong> — no longer relevant.
+          Agirc income starts immediately: ~€\${agircMonthly.toLocaleString('fr-FR')}/month, reducing your capital withdrawal by ~€\${agircMonthly.toLocaleString('fr-FR')}/month for 3 years.</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start;">
           <span style="background:#58a6ff;color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">5</span>

@@ -290,3 +290,121 @@ function fallbackAnalysis(calc: FireResult): AIAnalysis {
     summary: `<p>API key not configured — add it to <code>.env</code> and click Analyze with AI.</p>`,
     generatedAt: new Date().toISOString() };
 }
+
+// ── Scenario-specific fire plan ─────────────────────────────────────────────
+export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, scenario: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY;
+  if (!apiKey) return '<p style="color:var(--muted);">No API key configured.</p>';
+  const client = new Anthropic({ apiKey });
+
+  const gapYears        = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
+  const retAge          = profile.targetRetirementAge;
+  const govAge          = profile.govRetirementAge;
+  const ageActuel       = profile.age || 51;
+  const yearsToRetirement = Math.max(0, retAge - ageActuel);
+  const r               = profile.estimatedReturn || 0.05;
+  const br              = profile.bridgeReturn ?? 0.03;
+  const monthly         = profile.monthlyRetirementExpenses || 0;
+  const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
+  const saleProceedsFull = saleNet - Math.round(saleNet * 0.04) - 1000;
+  const saleProceeds    = saleProceedsFull - (profile.giftToChildren||0);
+  const stocksAtRetirement = Math.round((profile.stockPortfolio||0) * Math.pow(1+r, yearsToRetirement));
+  const totalCapital    = saleProceeds + (profile.currentSavings||0) + stocksAtRetirement;
+
+  const missingAtRetirement = calc.missingQuarters || 0;
+  const decoteRateCapped = Math.min(0.25, missingAtRetirement * 0.0125);
+  const trimestresRequis = calc.trimestresRequis || 172;
+  const quartersAtRetirement = calc.quartersAtRetirement || 0;
+  const pensionBase     = calc.pensionBaseMonthly || 0;
+  const pensionAgirc    = calc.pensionAgircMonthly || 0;
+  const pensionFullCNAV = pensionBase > 0 ? Math.round(pensionBase / (1 - decoteRateCapped)) : 0;
+  const pensionFull     = pensionFullCNAV + pensionAgirc;
+  const pensionReduced  = calc.calculatedPension || 0;
+
+  const PASS_2026       = 48060;
+  const lastGrossSal    = profile.lastGrossSalary || 85000;
+  const passRatio_      = lastGrossSal / PASS_2026;
+  const cvvAnnualCost   = passRatio_ >= 1.0 ? 8632 : passRatio_ >= 0.75 ? 6474 : passRatio_ >= 0.50 ? 4316 : 2160;
+  const cvvBracket      = passRatio_ >= 1.0 ? 1 : passRatio_ >= 0.75 ? 2 : passRatio_ >= 0.50 ? 3 : 4;
+  const cvvTMI          = lastGrossSal > 82341 ? 0.41 : lastGrossSal > 28797 ? 0.30 : 0.11;
+  const cvvCostTotal    = gapYears * cvvAnnualCost;
+  const cvvCostNet      = Math.round(cvvCostTotal * (1 - cvvTMI));
+  const qtrsWithCvv     = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);
+  const pensionScenF_CNAV = Math.round(pensionFullCNAV * qtrsWithCvv / Math.max(1, Math.min(quartersAtRetirement, trimestresRequis)));
+  const pensionScenF    = pensionScenF_CNAV + pensionAgirc;
+
+  const scenB_missing   = Math.max(0, trimestresRequis - quartersAtRetirement - 12);
+  const scenB_CNAV      = Math.round(pensionFullCNAV * (1 - Math.min(0.25, scenB_missing * 0.0125)));
+  const scenB_pension   = scenB_CNAV + pensionAgirc;
+  const scenC_qtrs      = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);
+  const scenC_missing   = Math.max(0, trimestresRequis - scenC_qtrs);
+  const scenC_CNAV      = Math.round(pensionFullCNAV * (1 - Math.min(0.25, scenC_missing * 0.0125)));
+  const scenC_pension   = scenC_CNAV + pensionAgirc;
+  const scenD_qtrs      = Math.min(quartersAtRetirement + 12 + gapYears * 4, trimestresRequis);
+  const scenD_missing   = Math.max(0, trimestresRequis - scenD_qtrs);
+  const scenD_CNAV      = Math.round(pensionFullCNAV * (1 - Math.min(0.25, scenD_missing * 0.0125)));
+  const scenD_pension   = scenD_CNAV + pensionAgirc;
+
+  // Scenarios G & H: work longer, extra Agirc points
+  const agircPerYrMo    = ((profile.agircPointsPerYear||0) * 1.4801) / 12;
+  const yearsTo65       = Math.max(0, 65 - retAge);
+  const yearsTo67       = Math.max(0, 67 - retAge);
+  const quartersAt65    = Math.min(quartersAtRetirement + yearsTo65 * 4, trimestresRequis);
+  const quartersAt67    = Math.min(quartersAtRetirement + yearsTo67 * 4, trimestresRequis);
+  const propBase        = Math.max(1, Math.min(quartersAtRetirement, trimestresRequis));
+  const pensionG_CNAV   = Math.round(pensionFullCNAV * quartersAt65 / propBase);
+  const pensionG_Agirc  = Math.round(pensionAgirc + agircPerYrMo * yearsTo65);
+  const pensionG        = pensionG_CNAV + pensionG_Agirc;
+  const pensionH_CNAV   = Math.round(pensionFullCNAV * quartersAt67 / propBase);
+  const pensionH_Agirc  = Math.round(pensionAgirc + agircPerYrMo * yearsTo67);
+  const pensionH        = pensionH_CNAV + pensionH_Agirc;
+
+  // Map scenario to variables
+  type ScenDef = { label: string; pension: number; claimAge: number; costNote: string; bridgeRows: string; workYears: number; stopAge: number; };
+  const scenMap: Record<string, ScenDef> = {
+    A: { label: 'A — Do nothing', pension: pensionReduced, claimAge: govAge, costNote: '€0 cost, but pension reduced by décote', bridgeRows: `- ${gapYears} bridge years age ${retAge}–${govAge-1}: SINGLE PHASE, Withdrawals=${fmt(monthly)}/mo, Pension=€0, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
+    B: { label: 'B — Rachat 12 quarters', pension: scenB_pension, claimAge: govAge, costNote: `Rachat cost ~€54k gross / ~€38k net after 30% tax, paid before age 60`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–${govAge-1}: Withdrawals=${fmt(monthly)}/mo, Pension=€0, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
+    C: { label: `C — CVV ${gapYears} yrs`, pension: scenC_pension, claimAge: govAge, costNote: `CVV Cat.${cvvBracket}: €${cvvAnnualCost}/yr × ${gapYears} yrs = ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net after tax`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–${govAge-1}: Withdrawals=${fmt(monthly)}/mo, Pension=€0, CVV cost €${cvvAnnualCost}/yr each year (tax-deductible), Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
+    D: { label: 'D — Rachat + CVV', pension: scenD_pension, claimAge: govAge, costNote: `Rachat ~€38k net + CVV ~${fmt(cvvCostNet)} net = combined cost`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–${govAge-1}: Withdrawals=${fmt(monthly)}/mo, Pension=€0, CVV cost €${cvvAnnualCost}/yr each year, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
+    E: { label: 'E — Wait until 67 (no CVV)', pension: pensionFull, claimAge: 67, costNote: `€0 CVV cost but extra 2yr bridge (age 65→67): ${fmt(monthly)} × 24 = ${fmt(monthly*24)}`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–66: Withdrawals=${fmt(monthly)}/mo, Pension=€0, No CVV cost, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%. (Note: extra 2 years vs claiming at 65)`, workYears: yearsToRetirement, stopAge: retAge },
+    F: { label: `F — CVV Cat.${cvvBracket} + claim at 67`, pension: pensionScenF, claimAge: 67, costNote: `CVV Cat.${cvvBracket}: ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net after ${Math.round(cvvTMI*100)}% tax`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–66: SINGLE PHASE, Withdrawals=${fmt(monthly)}/mo, Pension=€0 (CNAV+Agirc both start at 67 only — liquidation globale), CVV cost €${cvvAnnualCost}/yr each bridge year (add as note), Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
+    G: { label: 'G — Work until 65, claim at 67', pension: pensionG, claimAge: 67, costNote: '€0 strategy cost — no CVV needed', bridgeRows: `- 2 bridge years age 65–66 (stopped working, waiting for pension at 67): Withdrawals=${fmt(monthly)}/mo, Pension=€0, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: 65 - ageActuel, stopAge: 65 },
+    H: { label: 'H — Work until 67, claim at 67', pension: pensionH, claimAge: 67, costNote: '€0 cost — no bridge period at all', bridgeRows: '(No bridge period — pension starts immediately at 67)', workYears: 67 - ageActuel, stopAge: 67 },
+  };
+
+  const sc = scenMap[scenario] || scenMap['F'];
+  const isGH = scenario === 'G' || scenario === 'H';
+  const capitalNote = isGH
+    ? `Capital at retirement (age ${sc.stopAge}): not recalculated here — compare against base capital ${fmt(totalCapital)} at age ${retAge}. User keeps job income until ${sc.stopAge}, no house sale assumed at 60 in this comparison.`
+    : `Capital at retirement (age ${retAge}): house sale ${fmt(saleProceedsFull)} − gift ${fmt(profile.giftToChildren||0)} = ${fmt(saleProceeds)}, stocks ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}.`;
+
+  const prompt = `You are a French retirement financial advisor. Reply ONLY with valid compact JSON (no markdown). ENGLISH. Every JSON value MUST be a plain HTML string.
+
+Profile: age ${ageActuel}, retire at ${sc.stopAge}, state pension at ${sc.claimAge}.
+${capitalNote}
+Bridge return: ${(br*100).toFixed(0)}%.
+Monthly retirement budget: ${fmt(monthly)}.
+Inheritance: ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}.
+
+SCENARIO ${scenario}: ${sc.label}
+Pension from age ${sc.claimAge}: CNAV + Agirc = ${fmt(sc.pension)}/mo gross (before income tax — deduct ~30% for net)
+Cost: ${sc.costNote}
+
+Return JSON with exactly 1 key:
+"firePlan": HTML styled table (same dark-theme style as existing page) with title "Retirement Financial Plan: Scenario ${scenario} — ${sc.label}" at top.
+Columns: Year | Age | Event | Capital Start | Withdrawals | Pension Income (gross) | Net Draw | Return ${(br*100).toFixed(0)}% | Capital End.
+Rows:
+- ${sc.workYears} working years (age ${ageActuel}–${sc.stopAge-1}): Withdrawals=€0, Pension=€0, Net Draw=€0, capital grows at ${((r)*100).toFixed(0)}%.
+${sc.bridgeRows}
+- Age ${sc.claimAge}: Event="✅ CNAV+Agirc claimed simultaneously${scenario==='G'||scenario==='H'?' (claim at 67)':''} + Inheritance ${fmt(profile.inheritanceAmount||0)}", Pension Income=+${fmt(sc.pension)}/mo.
+- 3 post-pension years at age ${sc.claimAge}+: show surplus or deficit vs monthly budget.
+After table: 2-line note on (1) whether pension covers monthly budget, (2) strategy cost summary.
+⚠ Note in table header: "Monthly pension figures are GROSS before income tax — deduct ~30% (CSG 8.3% + income tax) for net amount."`;
+
+  try {
+    const result = await callAI(client, prompt);
+    return result.firePlan || '<p>No response from AI.</p>';
+  } catch (err: any) {
+    return `<p style="color:#e74c3c;">AI error: ${err?.message || err}</p>`;
+  }
+}

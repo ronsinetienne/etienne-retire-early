@@ -466,7 +466,22 @@ export function renderDashboard(
     </div>
     <div class="card">
       <div class="card-title">🤖 AI Action Plan</div>
-      <div class="ai-section" id="ai-fire-plan">${analysis?.firePlan || '<p style="color:var(--muted);">Click "Analyze with AI" above to get a personalized FIRE plan.</p>'}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
+        <span style="font-size:13px;font-weight:600;color:var(--text);">Plan for scenario:</span>
+        <select id="fire-plan-scenario" style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;flex:1;min-width:200px;">
+          <option value="F">★ F — CVV Cat.${(() => { const r=(profile.lastGrossSalary||85000)/48060; return r>=1?1:r>=0.75?2:r>=0.5?3:4; })()} (${profile.govRetirementAge - profile.targetRetirementAge} yrs) + claim CNAV+Agirc at 67 — recommended</option>
+          <option value="A">A — Do nothing (claim at ${profile.govRetirementAge} with ${Math.round(Math.min(25,(calc.missingQuarters||0)*1.25))}% décote)</option>
+          <option value="B">B — Rachat 12 qtrs before 60 (claim at ${profile.govRetirementAge})</option>
+          <option value="C">C — CVV ${profile.govRetirementAge - profile.targetRetirementAge} yrs × 4 = ${(profile.govRetirementAge - profile.targetRetirementAge)*4} qtrs (claim at ${profile.govRetirementAge})</option>
+          <option value="D">D — Rachat + CVV combined (claim at ${profile.govRetirementAge})</option>
+          <option value="E">E — Wait until 67, no CVV (taux plein auto, extra 2yr bridge cost)</option>
+          <option value="G">G — Work until 65 (${65-(profile.age||51)} more yrs), claim at 67</option>
+          <option value="H">H — Work until 67 (${67-(profile.age||51)} more yrs), no bridge</option>
+        </select>
+        <button onclick="runFirePlanForScenario()" style="background:var(--fire);color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">▶ Run AI Plan</button>
+        <span id="fire-plan-run-status" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+      <div class="ai-section" id="ai-fire-plan">${analysis?.firePlan || '<p style="color:var(--muted);">Select a scenario above and click ▶ Run AI Plan, or click "Analyze with AI" at the top to generate all sections at once.</p>'}</div>
     </div>
   </div>
 
@@ -746,7 +761,7 @@ export function renderDashboard(
         <thead>
           <tr style="background:rgba(255,255,255,0.06);">
             <th style="padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);">Scenario</th>
-            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Monthly €</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Monthly ⚠ gross</th>
             <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">From age</th>
             <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Net cost</th>
             <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 75</th>
@@ -755,13 +770,15 @@ export function renderDashboard(
             <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 90</th>
             <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:#f39c12;">Die at 95</th>
             <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);">Break-even</th>
+            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);min-width:290px;color:var(--muted);">How it's calculated</th>
           </tr>
         </thead>
         <tbody id="lifetime-pension-tbody"></tbody>
       </table>
       </div>
       <p style="font-size:11px;color:var(--muted);margin-top:8px;">
-        * Net cost = after 30% income tax deduction on rachat de trimestres. CVV contributions also fully deductible from income. Agirc-Arrco solidarity malus ABOLISHED Dec 1, 2023 — no longer applicable.
+        * <strong>Monthly pension figures are GROSS before income tax</strong> — deduct approx. 30% (or your marginal rate) to get net. Pension income is subject to CSG/CRDS (~8.3%) + income tax.
+        Net cost = after 30% income tax deduction on rachat de trimestres. CVV contributions also fully deductible from income. Agirc-Arrco solidarity malus ABOLISHED Dec 1, 2023 — no longer applicable.
         All values in today's euros (not inflation-adjusted).
       </p>
       <div id="pension-strategy-analysis" style="margin-top:20px;"></div>
@@ -1119,6 +1136,36 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   }
 });
 
+// ═══ SCENARIO FIRE PLAN ═══
+async function runFirePlanForScenario() {
+  const scenario = document.getElementById('fire-plan-scenario').value;
+  const statusEl = document.getElementById('fire-plan-run-status');
+  const div = document.getElementById('ai-fire-plan');
+  statusEl.textContent = \`⏳ Generating plan for scenario \${scenario}...\`;
+  statusEl.style.color = 'var(--fire)';
+  let elapsed = 0;
+  const ticker = setInterval(() => { elapsed++; statusEl.textContent = \`⏳ Scenario \${scenario} — \${elapsed}s...\`; }, 1000);
+  try {
+    const res = await fetch('/api/analyze-fire-plan', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ scenario, profile: profileData })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    div.innerHTML = data.firePlan || '';
+    clearInterval(ticker);
+    statusEl.textContent = \`✓ Done (\${elapsed}s)\`;
+    statusEl.style.color = 'var(--green)';
+    setTimeout(() => { statusEl.textContent = ''; }, 4000);
+  } catch(e) {
+    clearInterval(ticker);
+    statusEl.textContent = '✗ ' + (e.message || 'Error');
+    statusEl.style.color = 'var(--red)';
+    setTimeout(() => { statusEl.textContent = ''; }, 6000);
+  }
+}
+
 // ═══ SAM CALCULATOR ═══
 (function initSamCalc() {
   const PASS = {
@@ -1354,28 +1401,36 @@ function renderLifetimePensionTable() {
 
   const scenarios = [
     { label: 'A — Do nothing', pension: pensionReduced, claimAge: profile.govRetirementAge, cost: 0,
-      color: 'var(--muted)', decote: \`\${(decoteRaw*100).toFixed(1)}%\`, tag: '' },
+      color: 'var(--muted)', decote: \`\${(decoteRaw*100).toFixed(1)}%\`, tag: '',
+      note: \`CNAV: SAM(€\${(profile.salaireMoyen||0).toLocaleString('fr-FR')}/yr) ÷ 12 × 50% × \${calcQuarters}/\${trimReqs} qtrs × (1−\${(decoteRaw*100).toFixed(0)}% décote) = €\${Math.round(baseMonthly).toLocaleString('fr-FR')}/mo<br>+ Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo · ⚠ both gross — deduct ~30% income tax for net\` },
     { label: 'B — Rachat 12 quarters (before age 60)', pension: pensionAfterRachat, claimAge: profile.govRetirementAge,
       cost: rachatCostNet, color: '#bc8cff',
-      decote: \`\${(Math.min(0.25,missingAfterRachat*0.0125)*100).toFixed(1)}%\`, tag: rachatQ < missingQ ? '' : '✓ taux plein' },
+      decote: \`\${(Math.min(0.25,missingAfterRachat*0.0125)*100).toFixed(1)}%\`, tag: rachatQ < missingQ ? '' : '✓ taux plein',
+      note: \`Buying \${rachatQ} qtrs cuts décote \${(decoteRaw*100).toFixed(0)}%→\${(Math.min(0.25,missingAfterRachat*0.0125)*100).toFixed(0)}%<br>CNAV: €\${Math.round(pensionAfterRachat-agircMonthly).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo · ⚠ gross · Net cost = rachat cost × (1−30% tax)\` },
     { label: \`C — CVV \${gapYears} yrs × 4 = \${cvvQ} quarters\`, pension: pensionAfterCVV, claimAge: profile.govRetirementAge,
       cost: cvvCostTotal, color: '#58a6ff',
-      decote: \`\${(Math.min(0.25,missingAfterCVV*0.0125)*100).toFixed(1)}%\`, tag: missingAfterCVV === 0 ? '✓ taux plein' : \`\${missingAfterCVV} qtrs short\` },
+      decote: \`\${(Math.min(0.25,missingAfterCVV*0.0125)*100).toFixed(1)}%\`, tag: missingAfterCVV === 0 ? '✓ taux plein' : \`\${missingAfterCVV} qtrs short\`,
+      note: \`CVV credits \${cvvQ} qtrs (\${gapYears} yrs × 4), décote \${(decoteRaw*100).toFixed(0)}%→\${(Math.min(0.25,missingAfterCVV*0.0125)*100).toFixed(0)}%<br>CNAV: €\${Math.round(pensionAfterCVV-agircMonthly).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo · ⚠ gross · CVV cost = Cat.\${cvvBracket} €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} yrs (tax-deductible)\` },
     { label: 'D — Rachat + CVV combined', pension: pensionAfterBoth, claimAge: profile.govRetirementAge,
       cost: bothCostNet, color: 'var(--green)',
-      decote: \`\${(Math.min(0.25,missingAfterBoth*0.0125)*100).toFixed(1)}%\`, tag: missingAfterBoth === 0 ? '✓ TAUX PLEIN' : \`\${missingAfterBoth} qtrs short\` },
+      decote: \`\${(Math.min(0.25,missingAfterBoth*0.0125)*100).toFixed(1)}%\`, tag: missingAfterBoth === 0 ? '✓ TAUX PLEIN' : \`\${missingAfterBoth} qtrs short\`,
+      note: \`Rachat \${rachatQ} qtrs + CVV \${cvvQ} qtrs → décote \${(Math.min(0.25,missingAfterBoth*0.0125)*100).toFixed(0)}%\${missingAfterBoth===0?' (taux plein ✓)':''}<br>CNAV: €\${Math.round(pensionAfterBoth-agircMonthly).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo · ⚠ gross · Cost = rachat net + CVV gross\` },
     { label: 'E — Wait until 67 (taux plein automatique)', pension: pensionFull, claimAge: 67,
       cost: wait67ExtraCost, color: 'var(--fire)',
-      decote: '0%', tag: '✓ TAUX PLEIN' },
+      decote: '0%', tag: '✓ TAUX PLEIN',
+      note: \`Taux plein automatique at 67 regardless of quarters — no décote ever<br>CNAV: €\${Math.round(pensionFull-agircMonthly).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo · ⚠ gross<br>Extra bridge cost: €\${(profile.monthlyRetirementExpenses||0).toLocaleString('fr-FR')}/mo × 24 mo (age 65→67) = €\${Math.round(wait67ExtraCost).toLocaleString('fr-FR')}\` },
     { label: \`F — CVV Cat.\${cvvBracket} (\${gapYears} yrs) + claim CNAV+Agirc at 67\`, pension: pensionF, claimAge: 67,
       cost: scenFCost, color: '#f39c12',
-      decote: '0% (auto)', tag: \`✓ ~taux plein · €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} = €\${cvvCostTotal.toLocaleString('fr-FR')} gross · ~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax\` },
+      decote: '0% (auto)', tag: \`✓ ~taux plein · €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} = €\${cvvCostTotal.toLocaleString('fr-FR')} gross · ~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax\`,
+      note: \`CVV \${cvvQ} qtrs → taux plein · claim CNAV+Agirc together at 67 (liquidation globale)<br>CNAV: €\${Math.round(pensionF-agircMonthly).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo (frozen at age 60 stop) · ⚠ gross<br>CVV cost: Cat.\${cvvBracket} €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} yrs = €\${cvvCostTotal.toLocaleString('fr-FR')} gross (~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax)\` },
     { label: \`G — ★ Comparison: work until 65 (\${yearsTo65} more yrs), claim at 67\`, pension: pensionG, claimAge: 67,
       cost: 0, color: '#95a5a6',
-      decote: '0% (auto)', tag: \`\${quartersAt65}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionG_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo65)}/mo vs stopping at 60) · no bridge investment needed\` },
+      decote: '0% (auto)', tag: \`\${quartersAt65}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionG_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo65)}/mo vs stopping at 60) · no bridge investment needed\`,
+      note: \`Work \${yearsTo65} more yrs to 65, claim at 67 · \${quartersAt65}/\${trimReqs} qtrs (no décote at 67)<br>CNAV: €\${Math.round(pensionG_CNAV).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(pensionG_Agirc).toLocaleString('fr-FR')}/mo (\${yearsTo65} extra yrs' points vs stopping at 60) · ⚠ gross · No bridge cost\` },
     { label: \`H — ★ Comparison: work until 67 (\${yearsTo67} more yrs), claim at 67\`, pension: pensionH, claimAge: 67,
       cost: 0, color: '#7f8c8d',
-      decote: '0% (auto)', tag: \`\${quartersAt67}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionH_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo67)}/mo vs stopping at 60) · no bridge period at all\` },
+      decote: '0% (auto)', tag: \`\${quartersAt67}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionH_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo67)}/mo vs stopping at 60) · no bridge period at all\`,
+      note: \`Work \${yearsTo67} more yrs to 67, claim at 67 · \${quartersAt67}/\${trimReqs} qtrs (no décote at 67)<br>CNAV: €\${Math.round(pensionH_CNAV).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(pensionH_Agirc).toLocaleString('fr-FR')}/mo (\${yearsTo67} extra yrs' points vs stopping at 60) · ⚠ gross · No bridge period\` },
   ];
 
   // Find best scenario per age column (highest net total)
@@ -1399,6 +1454,7 @@ function renderLifetimePensionTable() {
       <td style="padding:5px 10px;text-align:right;color:var(--red);">\${s.cost > 0 ? fmt2(s.cost) : '—'}</td>
       \${cells}
       <td style="padding:5px 10px;text-align:right;color:\${be==='—'?'var(--muted)':'var(--fire)'};">\${be==='—'?'—':'age '+be}</td>
+      <td style="padding:5px 10px;font-size:11px;color:var(--muted);line-height:1.6;">\${s.note||''}</td>
     </tr>\`;
   }).join('');
 

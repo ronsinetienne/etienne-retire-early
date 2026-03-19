@@ -2,7 +2,7 @@ import { config, PROJECT_ROOT } from '../Config/Config';
 import { calculate } from './Calculator';
 import { loadProfile, saveProfile, loadAnalysis, saveAnalysis } from './ProfileStore';
 import { renderDashboard } from './Renderer';
-import { analyzeProfile } from './AIAnalyzer';
+import { analyzeProfile, analyzeFirePlan } from './AIAnalyzer';
 import type { UserProfile } from './Calculator';
 
 // Load .env if present
@@ -66,6 +66,19 @@ const server = Bun.serve({
         return Response.json(analysis);
       } catch (e: any) {
         console.error('Analyze error:', e);
+        return Response.json({ error: e.message }, { status: 500 });
+      }
+    }
+
+    // ── AI Fire Plan for specific scenario ─────────────────────
+    if (url.pathname === '/api/analyze-fire-plan' && method === 'POST') {
+      try {
+        const body = await req.json() as { scenario: string; profile: UserProfile };
+        const calc = calculate(body.profile);
+        const firePlan = await analyzeFirePlan(body.profile, calc, body.scenario);
+        return Response.json({ firePlan });
+      } catch (e: any) {
+        console.error('Analyze fire plan error:', e);
         return Response.json({ error: e.message }, { status: 500 });
       }
     }

@@ -574,6 +574,7 @@ export function renderDashboard(
           <option value="C">C — CVV ${profile.govRetirementAge - profile.targetRetirementAge} yrs × 4 = ${(profile.govRetirementAge - profile.targetRetirementAge)*4} qtrs (claim at ${profile.govRetirementAge})</option>
           <option value="D">D — Rachat + CVV combined (claim at ${profile.govRetirementAge})</option>
           <option value="E">E — Wait until 67, no CVV (taux plein auto, extra 2yr bridge cost)</option>
+          <option value="FB">F+B — Rachat 12q + CVV ${profile.govRetirementAge - profile.targetRetirementAge} yrs + claim at 67 (max proportion)</option>
           <option value="G">G — Work until 65 (${65-(profile.age||51)} more yrs), claim at 67</option>
           <option value="H">H — Work until 67 (${67-(profile.age||51)} more yrs), no bridge</option>
         </select>
@@ -1487,6 +1488,17 @@ function renderLifetimePensionTable() {
   // Cost = CVV only (bridge 60-67 already planned — no extra 2yr cost vs base plan)
   const scenFCost = cvvCostTotal;
 
+  // Scenario F+B: Rachat 12q BEFORE retirement + CVV during bridge + claim CNAV+Agirc at 67
+  // Rachat adds up to 12 more quarters to the proportion (on top of CVV quarters)
+  const qtrsWithCvvRachat = Math.min(calc.quartersAtRetirement + 12 + cvvQ, calc.trimestresRequis || 172);
+  const pensionFB = Math.round(
+    (baseMonthly > 0
+      ? (baseMonthly / (1 - decoteRaw)) * (qtrsWithCvvRachat / (calc.trimestresRequis || 172))
+      : 0)
+    + agircMonthlyF
+  );
+  const scenFBCost = rachatCostNet + cvvCostTotal; // rachat net + CVV gross
+
   function breakEvenAge(sPension, sCost, sClaimAge) {
     if (sPension <= pensionReduced && sClaimAge <= profile.govRetirementAge) return '—';
     for (let age = Math.max(sClaimAge, profile.govRetirementAge); age <= 110; age++) {
@@ -1524,6 +1536,10 @@ function renderLifetimePensionTable() {
       cost: scenFCost, color: '#f39c12',
       decote: '0% (auto)', tag: \`✓ ~taux plein · €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} = €\${cvvCostTotal.toLocaleString('fr-FR')} gross · ~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax\`,
       note: \`CVV \${cvvQ} qtrs → taux plein · claim CNAV+Agirc together at 67 (liquidation globale)<br>CNAV: €\${Math.round(pensionF-agircMonthly).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthly).toLocaleString('fr-FR')}/mo (frozen at age 60 stop) · ⚠ gross<br>CVV cost: Cat.\${cvvBracket} €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} yrs = €\${cvvCostTotal.toLocaleString('fr-FR')} gross (~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax)\` },
+    { label: \`F+B — Rachat 12q + CVV Cat.\${cvvBracket} (\${gapYears} yrs) + claim at 67\`, pension: pensionFB, claimAge: 67,
+      cost: scenFBCost, color: '#e67e22',
+      decote: '0% (auto)', tag: \`\${qtrsWithCvvRachat}/\${trimReqs} qtrs\${qtrsWithCvvRachat >= trimReqs ? ' ✓ FULL proportion' : ''} · Rachat net €\${rachatCostNet.toLocaleString('fr-FR')} + CVV €\${cvvCostTotal.toLocaleString('fr-FR')} gross\`,
+      note: \`Rachat 12q (before 60) + CVV \${cvvQ} qtrs (\${gapYears} yrs) → \${qtrsWithCvvRachat}/\${trimReqs} qtrs at 67 · claim CNAV+Agirc together (liquidation globale)<br>CNAV: €\${Math.round(pensionFB-agircMonthlyF).toLocaleString('fr-FR')}/mo + Agirc: €\${Math.round(agircMonthlyF).toLocaleString('fr-FR')}/mo · ⚠ gross<br>Total cost: rachat ~€\${rachatCostNet.toLocaleString('fr-FR')} net + CVV €\${cvvCostTotal.toLocaleString('fr-FR')} gross = €\${scenFBCost.toLocaleString('fr-FR')}\` },
     { label: \`G — ★ Comparison: work until 65 (\${yearsTo65} more yrs), claim at 67\`, pension: pensionG, claimAge: 67,
       cost: 0, color: '#95a5a6',
       decote: '0% (auto)', tag: \`\${quartersAt65}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionG_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo65)}/mo vs stopping at 60) · no bridge investment needed\`,

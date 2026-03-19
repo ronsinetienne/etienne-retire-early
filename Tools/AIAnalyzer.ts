@@ -351,9 +351,16 @@ export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, sc
   const cvvTMI          = lastGrossSal > 118817 ? 0.41 : lastGrossSal > 41554 ? 0.30 : 0.11;
   const cvvCostTotal    = gapYears * cvvAnnualCost;
   const cvvCostNet      = Math.round(cvvCostTotal * (1 - cvvTMI));
-  const qtrsWithCvv     = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);
+  const qtrsWithCvv       = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);
   const pensionScenF_CNAV = Math.round(pensionFullCNAV * qtrsWithCvv / Math.max(1, Math.min(quartersAtRetirement, trimestresRequis)));
-  const pensionScenF    = pensionScenF_CNAV + pensionAgirc;
+  const pensionScenF      = pensionScenF_CNAV + pensionAgirc;
+
+  // Scenario F+B: Rachat 12q (before retirement) + CVV during bridge + claim at 67
+  const qtrsWithCvvRachat   = Math.min(quartersAtRetirement + 12 + gapYears * 4, trimestresRequis);
+  const pensionScenFB_CNAV  = Math.round(pensionFullCNAV * qtrsWithCvvRachat / Math.max(1, Math.min(quartersAtRetirement, trimestresRequis)));
+  const pensionScenFB       = pensionScenFB_CNAV + pensionAgirc;
+  const rachatCostNet_      = Math.round(Math.min(12, trimestresRequis - quartersAtRetirement) * 4500 * 0.70);
+  const scenFBCostNote      = `Rachat ~€${fmt(rachatCostNet_)} net + CVV ${fmt(cvvCostTotal)} gross = ~€${fmt(rachatCostNet_ + cvvCostTotal)} total`;
 
   const scenB_missing   = Math.max(0, trimestresRequis - quartersAtRetirement - 12);
   const scenB_CNAV      = Math.round(pensionFullCNAV * (1 - Math.min(0.25, scenB_missing * 0.0125)));
@@ -390,12 +397,14 @@ export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, sc
     D: { label: 'D — Rachat + CVV', pension: scenD_pension, claimAge: govAge, costNote: `Rachat ~€38k net + CVV ~${fmt(cvvCostNet)} net = combined cost`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–${govAge-1}: Withdrawals=${fmt(monthly)}/mo, Pension=€0, CVV cost €${cvvAnnualCost}/yr each year, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
     E: { label: 'E — Wait until 67 (no CVV)', pension: pensionFull, claimAge: 67, costNote: `€0 CVV cost but extra 2yr bridge (age 65→67): ${fmt(monthly)} × 24 = ${fmt(monthly*24)}`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–66: Withdrawals=${fmt(monthly)}/mo, Pension=€0, No CVV cost, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%. (Note: extra 2 years vs claiming at 65)`, workYears: yearsToRetirement, stopAge: retAge },
     F: { label: `F — CVV Cat.${cvvBracket} + claim at 67`, pension: pensionScenF, claimAge: 67, costNote: `CVV Cat.${cvvBracket}: ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net after ${Math.round(cvvTMI*100)}% tax`, bridgeRows: `- ${gapYears} bridge years age ${retAge}–66: SINGLE PHASE, Withdrawals=${fmt(monthly)}/mo, Pension=€0 (CNAV+Agirc both start at 67 only — liquidation globale), Strategy Cost=€${cvvAnnualCost} EACH YEAR (CVV annual contribution — NOT the total; total over ${gapYears} yrs = ${fmt(cvvCostTotal)} gross), Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: yearsToRetirement, stopAge: retAge },
+    FB: { label: `F+B — Rachat 12q + CVV Cat.${cvvBracket} + claim at 67`, pension: pensionScenFB, claimAge: 67, costNote: scenFBCostNote, bridgeRows: `- ${gapYears} bridge years age ${retAge}–66: SINGLE PHASE (rachat already paid before retiring), Withdrawals=${fmt(monthly)}/mo, Pension=€0 (CNAV+Agirc both start at 67 only — liquidation globale), Strategy Cost=€${cvvAnnualCost} EACH YEAR (CVV annual contribution only — rachat was a one-off before retirement), Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%. Note: ${qtrsWithCvvRachat}/${trimestresRequis} quarters → ${qtrsWithCvvRachat >= trimestresRequis ? 'FULL 100% proportion' : `${qtrsWithCvvRachat}/${trimestresRequis} proportion`}.`, workYears: yearsToRetirement, stopAge: retAge },
     G: { label: 'G — Work until 65, claim at 67', pension: pensionG, claimAge: 67, costNote: '€0 strategy cost — no CVV needed', bridgeRows: `- 2 bridge years age 65–66 (stopped working, waiting for pension at 67): Withdrawals=${fmt(monthly)}/mo, Pension=€0, Net Draw=${fmt(monthly)}/mo, Return ${(br*100).toFixed(0)}%.`, workYears: 65 - ageActuel, stopAge: 65 },
     H: { label: 'H — Work until 67, claim at 67', pension: pensionH, claimAge: 67, costNote: '€0 cost — no bridge period at all', bridgeRows: '(No bridge period — pension starts immediately at 67)', workYears: 67 - ageActuel, stopAge: 67 },
   };
 
   const sc = scenMap[scenario] || scenMap['F'];
   const isGH = scenario === 'G' || scenario === 'H';
+  const isFB = scenario === 'FB';
   const capitalNote = isGH
     ? `Capital at retirement (age ${sc.stopAge}): not recalculated here — compare against base capital ${fmt(totalCapital)} at age ${retAge}. User keeps job income until ${sc.stopAge}, no house sale assumed at 60 in this comparison.`
     : `Capital at retirement (age ${retAge}): house net proceeds ${fmt(saleProceeds)} reinvested into stock portfolio, stocks at retirement ${fmt(stocksAtRetirement)}, total stock portfolio after house sale ${fmt(stockAfterHouseSale)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}.`;

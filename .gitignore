@@ -4,3 +4,4 @@ data/
 .env.local
 bun.lock
 *.lock
+fire.config.json

@@ -1,0 +1,6 @@
+{
+  "port": 3743,
+  "dataDir": "./data",
+  "baseCurrency": "EUR",
+  "enableAI": false
+}

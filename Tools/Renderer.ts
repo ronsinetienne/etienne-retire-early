@@ -1372,10 +1372,10 @@ function renderLifetimePensionTable() {
       decote: '0% (auto)', tag: \`✓ ~taux plein · €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} = €\${cvvCostTotal.toLocaleString('fr-FR')} gross · ~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax\` },
     { label: \`G — ★ Comparison: work until 65 (\${yearsTo65} more yrs), claim at 67\`, pension: pensionG, claimAge: 67,
       cost: 0, color: '#95a5a6',
-      decote: '0% (auto)', tag: \`\${quartersAt65}/\${trimReqs} qtrs · +\${Math.round(agircPerYrMo*yearsTo65)}/mo Agirc · no bridge investment needed\` },
+      decote: '0% (auto)', tag: \`\${quartersAt65}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionG_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo65)}/mo vs stopping at 60) · no bridge investment needed\` },
     { label: \`H — ★ Comparison: work until 67 (\${yearsTo67} more yrs), claim at 67\`, pension: pensionH, claimAge: 67,
       cost: 0, color: '#7f8c8d',
-      decote: '0% (auto)', tag: \`\${quartersAt67}/\${trimReqs} qtrs · +\${Math.round(agircPerYrMo*yearsTo67)}/mo Agirc · no bridge period at all\` },
+      decote: '0% (auto)', tag: \`\${quartersAt67}/\${trimReqs} qtrs · Agirc: \${Math.round(pensionH_Agirc)}/mo (+\${Math.round(agircPerYrMo*yearsTo67)}/mo vs stopping at 60) · no bridge period at all\` },
   ];
 
   // Find best scenario per age column (highest net total)

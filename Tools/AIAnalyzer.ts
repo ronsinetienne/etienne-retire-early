@@ -24,9 +24,7 @@ function buildContext(
   pensionFull: number, pensionReduced: number, pensionFullCNAV: number,
   pensionAgirc: number, pensionScenF: number,
   missingAtRetirement: number, decotePct: string, trimestresRequis: number, quartersAtRetirement: number,
-  agircAtLegalAge: number, bridgePhase2NetMonthly: number,
-  yearsBeforeAgirc: number, yearsAfterAgircBeforePension: number,
-  legalRetAge: number, cvvCostTotal: number, bridgeTotal: number,
+  cvvCostTotal: number, cvvAnnualCost: number, cvvBracket: number, cvvCostNet: number, cvvTMI: number, bridgeTotal: number,
 ) {
   const hasPrecisePension = (profile.salaireMoyen||0) > 0;
   const retAge = profile.targetRetirementAge;
@@ -53,20 +51,18 @@ ${hasPrecisePension ? `- Retraite de base (CNAV) at age ${retAge} with ${decoteP
 - TOTAL pension at age ${retAge} with décote (do nothing): ${fmt(pensionReduced)}/month` : `- Estimated pension: ${fmt(profile.govMonthlyPension||0)}/month`}
 
 CHOSEN STRATEGY — SCENARIO F (confirmed by user):
-- ✅ CVV (cotisation volontaire) during bridge: ${gapYears} yrs × ~€2,000 = ${fmt(cvvCostTotal)} total
-- ✅ Agirc-Arrco claimed at age ${legalRetAge} (legal retirement age for born ${birthYear_})
-  → No permanent reduction (minoration viagère) since claiming AT the legal age, not before
-  → ⚠️ Solidarity malus was ABOLISHED on Dec 1, 2023 — no longer relevant (was -10% for 3yrs)
-  → Agirc monthly from age ${legalRetAge}: ${fmt(agircAtLegalAge)}/month
-- ✅ CNAV base pension claimed at age ${govAge} → taux plein AUTOMATIQUE (0% décote guaranteed by law)
+- ✅ CVV Category ${cvvBracket} during bridge: ${gapYears} yrs × €${cvvAnnualCost}/yr = ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net after ${Math.round(cvvTMI*100)}% tax deduction (last gross salary determines bracket)
+- ✅ CNAV + Agirc-Arrco BOTH claimed simultaneously at age ${govAge} (French law: liquidation globale — cannot split CNAV and Agirc claims)
+  → ⚠️ Solidarity malus ABOLISHED Dec 1, 2023 — no longer relevant
+  → CNAV: taux plein AUTOMATIQUE at ${govAge} (0% décote guaranteed by law regardless of missing quarters)
   → CVV improves CNAV proportion: ${quartersAtRetirement} + ${gapYears*4} CVV quarters = ${Math.min(quartersAtRetirement+gapYears*4, trimestresRequis)}/${trimestresRequis}
-- ✅ Scenario F total pension at ${govAge}: CNAV ${fmt(Math.round(pensionScenF - pensionAgirc))} + Agirc ${fmt(pensionAgirc)} = ${fmt(pensionScenF)}/month
+- ✅ Scenario F total pension from ${govAge}: CNAV ${fmt(Math.round(pensionScenF - pensionAgirc))} + Agirc ${fmt(pensionAgirc)} = ${fmt(pensionScenF)}/month
 
 BRIDGE CASH-FLOW WITH SCENARIO F:
-- Phase 1 age ${retAge}–${legalRetAge-1} (${yearsBeforeAgirc} yrs): full withdrawal ${fmt(monthly)}/mo = ${fmt(monthly*12)}/yr from capital — no pension income
-- Phase 2 age ${legalRetAge}–${govAge-1} (${yearsAfterAgircBeforePension} yrs): ${fmt(monthly)}/mo budget − ${fmt(agircAtLegalAge)}/mo Agirc = NET ${fmt(bridgePhase2NetMonthly)}/mo from capital
-- Total capital drawn from bridge: ${fmt(bridgeTotal)} (saves ${fmt(agircAtLegalAge*12*yearsAfterAgircBeforePension)} vs claiming Agirc only at ${govAge})
-- Age ${govAge}+: full pension ${fmt(pensionScenF)}/mo — capital preserved
+- SINGLE PHASE: age ${retAge}–${govAge-1} (${gapYears} yrs, NO pension income — both pensions start at ${govAge} only)
+- Full withdrawal: ${fmt(monthly)}/mo = ${fmt(monthly*12)}/yr from capital for all ${gapYears} bridge years
+- Total capital drawn: ${fmt(bridgeTotal)} (age ${retAge} to ${govAge})
+- Age ${govAge}+: full pension ${fmt(pensionScenF)}/mo — capital preserved, withdrawal drops to near zero
 
 Inheritance: ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}.
 Retirement home (${profile.secondPropertyCity||'Bretagne'}): owned, no mortgage.
@@ -136,17 +132,22 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   // ✅ FIX: pensionReduced = pension at targetRetirementAge WITH décote (calc already applied it)
   const pensionReduced   = calc.calculatedPension || (profile.govMonthlyPension||0);
 
-  // ── Scenario F: CVV + Agirc at legal age + CNAV at govRetirementAge ───────
-  // Legal retirement age under 2023 reform (for born 1974 → 64)
+  // ── Scenario F: CVV during bridge + claim CNAV + Agirc simultaneously at govRetirementAge ──
+  // French law: "liquidation globale" — CNAV and Agirc-Arrco must be claimed together
+  // Bridge is ONE single phase: age retAge→govAge, NO pension income, full withdrawal throughout
   const birthYear_    = profile.birthYear || 1974;
-  const legalRetAge   = birthYear_ >= 1968 ? 64 : birthYear_ >= 1964 ? 63 : 62;
-  const agircAtLegalAge   = pensionAgirc; // same Agirc points — no new points after retirement
-  const yearsBeforeAgirc  = Math.max(0, legalRetAge - (profile.targetRetirementAge || 60)); // 60→64: 4 yrs
-  const yearsAfterAgircBeforePension = Math.max(0, (profile.govRetirementAge || 67) - legalRetAge); // 64→67: 3 yrs
-  const bridgePhase2NetMonthly = Math.max(0, (profile.monthlyRetirementExpenses||0) - agircAtLegalAge);
-  const bridgeTotal    = (profile.monthlyRetirementExpenses||0) * 12 * yearsBeforeAgirc
-                       + bridgePhase2NetMonthly * 12 * yearsAfterAgircBeforePension;
-  const cvvCostTotal   = gapYears * 2160; // ~€2,160/yr CVV (Category 4 minimum, 25% PASS 2026)
+  const bridgeTotal    = (profile.monthlyRetirementExpenses||0) * 12 * gapYears;
+  const legalRetAge    = birthYear_ >= 1968 ? 64 : birthYear_ >= 1964 ? 63 : 62; // info only — Scenario F waits until govRetirementAge
+
+  // CVV bracket based on last gross salary vs PASS 2026 (€48,060)
+  const PASS_2026      = 48060;
+  const lastGrossSal   = profile.lastGrossSalary || 85000;
+  const passRatio_     = lastGrossSal / PASS_2026;
+  const cvvAnnualCost  = passRatio_ >= 1.0 ? 8632 : passRatio_ >= 0.75 ? 6474 : passRatio_ >= 0.50 ? 4316 : 2160;
+  const cvvBracket     = passRatio_ >= 1.0 ? 1 : passRatio_ >= 0.75 ? 2 : passRatio_ >= 0.50 ? 3 : 4;
+  const cvvTMI         = lastGrossSal > 82341 ? 0.41 : lastGrossSal > 28797 ? 0.30 : 0.11;
+  const cvvCostTotal   = gapYears * cvvAnnualCost;
+  const cvvCostNet     = Math.round(cvvCostTotal * (1 - cvvTMI));
 
   // Scenario F CNAV: taux plein auto at 67, with CVV quarters improving proportion
   const qtrsWithCvv    = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);
@@ -179,9 +180,7 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
     stocksAtRetirement, totalCapital,
     pensionFull, pensionReduced, pensionFullCNAV, pensionAgirc, pensionScenF,
     missingAtRetirement, decotePct, trimestresRequis, quartersAtRetirement,
-    agircAtLegalAge, bridgePhase2NetMonthly,
-    yearsBeforeAgirc, yearsAfterAgircBeforePension,
-    legalRetAge, cvvCostTotal, bridgeTotal,
+    cvvCostTotal, cvvAnnualCost, cvvBracket, cvvCostNet, cvvTMI, bridgeTotal,
   );
 
   const BASE = `You are a retirement financial advisor. Reply ONLY with valid compact JSON (no markdown, no extra text). ENGLISH. Every JSON value MUST be a plain HTML string — never a nested object or array.
@@ -193,7 +192,7 @@ ${ctx}`;
 
 Return JSON with exactly 2 keys:
 
-"summary": HTML with: (1) capital table — house sale ${fmt(saleProceedsFull)} − gift ${fmt(giftToKids)} = ${fmt(saleProceeds)}, stocks ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}. (2) bridge table with 2 phases: Phase 1 age ${profile.targetRetirementAge}–${legalRetAge-1} (${yearsBeforeAgirc} yrs, no pension): ${fmt((profile.monthlyRetirementExpenses||0)*12)}/yr × ${yearsBeforeAgirc} = ${fmt((profile.monthlyRetirementExpenses||0)*12*yearsBeforeAgirc)}; Phase 2 age ${legalRetAge}–${profile.govRetirementAge-1} (${yearsAfterAgircBeforePension} yrs, Agirc ${fmt(agircAtLegalAge)}/mo): net ${fmt(bridgePhase2NetMonthly)}/mo × ${yearsAfterAgircBeforePension*12}mo = ${fmt(bridgePhase2NetMonthly*12*yearsAfterAgircBeforePension)}; TOTAL from capital: ${fmt(bridgeTotal)}. (3) capital at ${profile.govRetirementAge} at 0%/${(br*100).toFixed(0)}%/${(br*100+1).toFixed(0)}% bridge return. (4) at ${profile.govRetirementAge}: +inheritance ${fmt(profile.inheritanceAmount||0)} +pension ${fmt(pensionScenF)}/mo (Scenario F). (5) 2 urgent actions.
+"summary": HTML with: (1) capital table — house sale ${fmt(saleProceedsFull)} − gift ${fmt(giftToKids)} = ${fmt(saleProceeds)}, stocks ${fmt(stocksAtRetirement)}, cash ${fmt(profile.currentSavings||0)}, TOTAL ${fmt(totalCapital)}. (2) bridge table SINGLE PHASE — age ${profile.targetRetirementAge}–${profile.govRetirementAge-1} (${gapYears} yrs, NO pension income — CNAV+Agirc both start at ${profile.govRetirementAge} only, French law requires simultaneous claim): ${fmt((profile.monthlyRetirementExpenses||0)*12)}/yr × ${gapYears} = ${fmt(bridgeTotal)} total from capital. CVV cost: €${cvvAnnualCost}/yr × ${gapYears} = ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net. (3) capital at ${profile.govRetirementAge} at 0%/${(br*100).toFixed(0)}%/${(br*100+1).toFixed(0)}% bridge return. (4) at ${profile.govRetirementAge}: +inheritance ${fmt(profile.inheritanceAmount||0)} +pension ${fmt(pensionScenF)}/mo (Scenario F). (5) 2 urgent actions.
 
 "realism": HTML 3-row table: scenario(optimistic/realistic/pessimistic) | monthly budget | capital at ${profile.govRetirementAge} | verdict. End with score /10.`;
 
@@ -205,11 +204,9 @@ Return JSON with exactly 1 key:
 "firePlan": HTML year-by-year table columns: Year|Age|Event|Capital Start|Withdrawals|Pension Income|Net Draw|Return ${(br*100).toFixed(0)}%|Capital End.
 Rows:
 - ${yearsToRetirement} working years: capital grows at ${((profile.estimatedReturn||0.07)*100).toFixed(0)}%, Withdrawals=€0, Pension=€0, Net Draw=€0.
-- ${yearsBeforeAgirc} bridge years age ${profile.targetRetirementAge}–${legalRetAge-1}: Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension Income=€0, Net Draw=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Return ${(br*100).toFixed(0)}%.
-- Age ${legalRetAge}: Event="✅ Agirc claimed (legal age ${legalRetAge}, no reduction)", Pension Income=+${fmt(agircAtLegalAge)}/mo.
-- ${yearsAfterAgircBeforePension} bridge years age ${legalRetAge}–${profile.govRetirementAge-1}: Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension Income=+${fmt(agircAtLegalAge)}/mo, Net Draw=${fmt(bridgePhase2NetMonthly)}/mo.
-- Age ${profile.govRetirementAge}: Event="✅ CNAV taux plein auto + Inheritance ${fmt(profile.inheritanceAmount||0)}", Pension Income=+${fmt(pensionScenF)}/mo (full Scenario F).
-- 3 post-pension years: Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension=${fmt(pensionScenF)}/mo, Net Draw=surplus.
+- ${gapYears} bridge years age ${profile.targetRetirementAge}–${profile.govRetirementAge-1}: SINGLE PHASE, Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension Income=€0 (NO pension during bridge — CNAV+Agirc only start at ${profile.govRetirementAge}), Net Draw=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Return ${(br*100).toFixed(0)}%. Add CVV cost €${cvvAnnualCost}/yr each bridge year as a note.
+- Age ${profile.govRetirementAge}: Event="✅ CNAV+Agirc claimed simultaneously (taux plein auto) + Inheritance ${fmt(profile.inheritanceAmount||0)}", Pension Income=+${fmt(pensionScenF)}/mo (Scenario F: CNAV ${fmt(Math.round(pensionScenF-pensionAgirc))} + Agirc ${fmt(pensionAgirc)}).
+- 3 post-pension years: Withdrawals=${fmt(profile.monthlyRetirementExpenses||0)}/mo, Pension=${fmt(pensionScenF)}/mo, Net Draw=surplus (pension > expenses = capital grows).
 Capital at retirement = ${fmt(totalCapital)}. Bridge return = ${(br*100).toFixed(0)}%. Mark inheritance ${fmt(profile.inheritanceAmount||0)} at age ${profile.inheritanceAge||65}. After table: 3-line recommended investment split for ${fmt(totalCapital)}.`;
 
   // ── CALL C: stocks + realEstate ──────────────────────────────────────────
@@ -240,8 +237,8 @@ B-Rachat 12q (then claim at ${profile.targetRetirementAge}): ${quartersAtRetirem
 C-CVV ${gapYears}yrs (claim at ${profile.targetRetirementAge}): ${scenC_qtrs}q, ${scenC_missing} missing, −${(Math.min(25,scenC_missing*1.25)).toFixed(1)}%, CNAV ${fmt(scenC_CNAV)}, Agirc ${fmt(pensionAgirc)}, Total ${fmt(scenC_pension)}/mo, ${fmt(cvvCostTotal)} CVV cost, 20yr=${fmt(scenC_pension*12*20)}
 D-Rachat+CVV (claim at ${profile.targetRetirementAge}): ${scenD_qtrs}q vs ${trimestresRequis} → ${scenD_missing===0?'TAUX PLEIN':'still short'}, CNAV ${fmt(scenD_CNAV)}, Agirc ${fmt(pensionAgirc)}, Total ${fmt(scenD_pension)}/mo, €54k+${fmt(cvvCostTotal)} combined, 20yr=${fmt(scenD_pension*12*20)}
 E-Wait 67 (no CVV): ${quartersAtRetirement}q, taux plein auto, CNAV ${fmt(pensionFullCNAV)}, Agirc ${fmt(pensionAgirc)}, Total ${fmt(pensionFull)}/mo, €0 cost but extra bridge ${fmt(wait67ExtraBridge)}, 20yr=${fmt(pensionFull*12*20)}
-★ F-CHOSEN: CVV ${gapYears}yrs + Agirc at ${legalRetAge} + CNAV at ${profile.govRetirementAge}: ${qtrsWithCvv}q, taux plein auto, CNAV ${fmt(pensionScenF_CNAV)}, Agirc ${fmt(pensionAgirc)}, Total ${fmt(pensionScenF)}/mo, ${fmt(cvvCostTotal)} CVV only, 20yr=${fmt(pensionScenF*12*20)} — BEST VALUE
-After table: 1-paragraph RECOMMENDATION highlighting Scenario F as chosen, explaining: (1) no solidarity malus (abolished 2023), (2) Agirc at ${legalRetAge} = legal age, no permanent reduction, (3) CNAV taux plein auto at ${profile.govRetirementAge}, (4) monthly income improvement vs doing nothing: +${fmt(pensionScenF-scenA_pension)}/mo.`;
+★ F-CHOSEN: CVV Cat.${cvvBracket} ${gapYears}yrs (€${cvvAnnualCost}/yr × ${gapYears} = ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net) + CNAV+Agirc BOTH at ${profile.govRetirementAge} (simultaneous, French law): ${qtrsWithCvv}q, taux plein auto, CNAV ${fmt(pensionScenF_CNAV)}, Agirc ${fmt(pensionAgirc)}, Total ${fmt(pensionScenF)}/mo, 20yr=${fmt(pensionScenF*12*20)} — BEST VALUE
+After table: 1-paragraph RECOMMENDATION highlighting Scenario F as chosen, explaining: (1) solidarity malus ABOLISHED Dec 2023, (2) CNAV+Agirc must be claimed simultaneously at ${profile.govRetirementAge} (French law — cannot split), (3) CNAV taux plein auto at ${profile.govRetirementAge}, (4) CVV cost: ${fmt(cvvCostTotal)} gross / ~${fmt(cvvCostNet)} net, (5) monthly income improvement vs doing nothing: +${fmt(pensionScenF-scenA_pension)}/mo.`;
 
   try {
     // Run all 4 API calls in parallel

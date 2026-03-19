@@ -20,6 +20,7 @@ export interface UserProfile {
   monthlyRetirementExpenses: number;
   estimatedReturn: number; // e.g. 0.07 for 7% — growth phase (pre-retirement)
   bridgeReturn: number;    // e.g. 0.03 for 3% — conservative return during bridge drawdown
+  lastGrossSalary: number; // last full-year gross salary — determines CVV contribution bracket
   inflation: number;       // e.g. 0.02 for 2%
   notes: string;
   // Government retirement

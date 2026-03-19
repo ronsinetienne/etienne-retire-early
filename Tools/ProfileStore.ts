@@ -25,6 +25,7 @@ const defaultProfile: UserProfile = {
   monthlyRetirementExpenses: 3500,
   estimatedReturn: 0.04,
   bridgeReturn: 0.03,
+  lastGrossSalary: 85000,
   inflation: 0.02,
   notes: '',
   govRetirementAge: 65,

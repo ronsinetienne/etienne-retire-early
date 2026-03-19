@@ -214,6 +214,15 @@ export function renderDashboard(
           </div>
         </div>
         <div class="form-group">
+          <label>Last Gross Salary (annual) ${currency} <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(used to calculate CVV bracket)</span></label>
+          <div class="input-prefix"><span>${currency}</span><input type="number" name="lastGrossSalary" value="${profile.lastGrossSalary || 85000}" min="0" step="1000"></div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;line-height:1.45;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:4px;border-left:2px solid var(--muted);">
+            CVV contribution cost is set by 4 brackets based on % of PASS (€48,060 in 2026):
+            &lt;€12k/yr → Cat.4 ~€2,160/yr · €12–36k → Cat.3 ~€4,316/yr · €36–48k → Cat.2 ~€6,474/yr · &gt;€48k → <strong>Cat.1 ~€8,632/yr</strong>.
+            Your salary determines your bracket — all categories validate <strong>4 quarters/year</strong> equally.
+          </div>
+        </div>
+        <div class="form-group">
           <label>Inflation %</label>
           <input type="number" name="inflation" value="${(profile.inflation * 100).toFixed(1)}" step="0.1" min="0" max="10">
         </div>
@@ -1020,6 +1029,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   const p = Object.fromEntries([...fd.entries()].map(([k,v]) => [k, isNaN(+v)||k==='notes'?v:+v]));
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
   p.bridgeReturn = (+fd.get('bridgeReturn')) / 100 || 0.03;
+  p.lastGrossSalary = +fd.get('lastGrossSalary') || 85000;
   p.inflation = (+fd.get('inflation')) / 100;
   p.govRetirementAge = +fd.get('govRetirementAge');
   p.govMonthlyPension = +fd.get('govMonthlyPension');
@@ -1041,6 +1051,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   for (const [k,v] of fd.entries()) p[k] = isNaN(+v)||k==='notes'?v:+v;
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
   p.bridgeReturn = (+fd.get('bridgeReturn')) / 100 || 0.03;
+  p.lastGrossSalary = +fd.get('lastGrossSalary') || 85000;
   p.inflation = (+fd.get('inflation')) / 100;
   p.govRetirementAge = +fd.get('govRetirementAge');
   p.govMonthlyPension = +fd.get('govMonthlyPension');
@@ -1269,11 +1280,18 @@ function renderLifetimePensionTable() {
   const rachatCostGross = rachatQ * 4500;
   const rachatCostNet = Math.round(rachatCostGross * 0.70);
 
-  // CVV: bridge years × 4 quarters
+  // CVV: bridge years × 4 quarters — cost determined by last gross salary vs PASS 2026
   const cvvQ = gapYears * 4;
   const missingAfterCVV = Math.max(0, missingQ - cvvQ);
   const pensionAfterCVV = Math.round(pensionFull * (1 - Math.min(0.25, missingAfterCVV * 0.0125)));
-  const cvvCostTotal = Math.round(gapYears * 2000);
+  const PASS_2026 = 48060;
+  const lastGrossSalary = profile.lastGrossSalary || 85000;
+  const passRatio = lastGrossSalary / PASS_2026;
+  const cvvAnnualCost = passRatio >= 1.0 ? 8632 : passRatio >= 0.75 ? 6474 : passRatio >= 0.50 ? 4316 : 2160;
+  const cvvBracket = passRatio >= 1.0 ? 1 : passRatio >= 0.75 ? 2 : passRatio >= 0.50 ? 3 : 4;
+  const cvvTMI = lastGrossSalary > 82341 ? 0.41 : lastGrossSalary > 28797 ? 0.30 : 0.11;
+  const cvvCostTotal = Math.round(gapYears * cvvAnnualCost);
+  const cvvCostNet = Math.round(cvvCostTotal * (1 - cvvTMI));
 
   // Combined B+C
   const missingAfterBoth = Math.max(0, missingQ - rachatQ - cvvQ);
@@ -1329,9 +1347,9 @@ function renderLifetimePensionTable() {
     { label: 'E — Wait until 67 (taux plein automatique)', pension: pensionFull, claimAge: 67,
       cost: wait67ExtraCost, color: 'var(--fire)',
       decote: '0%', tag: '✓ TAUX PLEIN' },
-    { label: \`F — CVV \${gapYears} yrs + claim at 67 (taux plein auto)\`, pension: pensionF, claimAge: 67,
+    { label: \`F — CVV Cat.\${cvvBracket} (\${gapYears} yrs) + claim CNAV+Agirc at 67\`, pension: pensionF, claimAge: 67,
       cost: scenFCost, color: '#f39c12',
-      decote: '0% (auto)', tag: \`✓ ~taux plein · CVV cost only €\${scenFCost.toLocaleString('fr-FR')}\` },
+      decote: '0% (auto)', tag: \`✓ ~taux plein · €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} = €\${cvvCostTotal.toLocaleString('fr-FR')} gross · ~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax\` },
   ];
 
   // Find best scenario per age column (highest net total)
@@ -1414,10 +1432,10 @@ function renderLifetimePensionTable() {
           <br><em style="color:var(--muted);">⚠️ Must apply to CNAV before you retire. Request a free "chiffrage" (quote) online at info-retraite.fr → rachat de trimestres.</em>
         </div>
         <div style="padding:10px;border-left:3px solid #58a6ff;background:rgba(88,166,255,0.04);">
-          <strong style="color:#58a6ff;">C — CVV during bridge period (\${gapYears} years):</strong> Pay ~€2,000/year voluntarily to CPAM (form S3705) — total €\${cvvCostTotal.toLocaleString('fr-FR')} over \${gapYears} years.
+          <strong style="color:#58a6ff;">C — CVV during bridge period (\${gapYears} years):</strong> Pay €\${cvvAnnualCost.toLocaleString('fr-FR')}/year (Category \${cvvBracket} based on your last salary €\${(profile.lastGrossSalary||85000).toLocaleString('fr-FR')}) — total €\${cvvCostTotal.toLocaleString('fr-FR')} gross / ~€\${cvvCostNet.toLocaleString('fr-FR')} net over \${gapYears} years.
           Earns 4 quarters/year = \${cvvQ} quarters total. Missing: \${missingQ} → \${missingAfterCVV}. Monthly gain: +€\${Math.round(pensionAfterCVV-pensionReduced).toLocaleString('fr-FR')}/month.
           \${cvvAloneReachesTP ? '<strong style="color:var(--green);">This alone achieves TAUX PLEIN — exceptional ROI.</strong>' : ''}
-          <br><em style="color:var(--muted);">⚠️ Enroll within 6 months of stopping work (age 60). File form S3705 at your CPAM immediately after retirement.</em>
+          <br><em style="color:var(--muted);">⚠️ Enroll within 6 months of stopping work (age 60). File form <strong>S1101</strong> at your CPAM immediately after retirement.</em>
         </div>
         <div style="padding:10px;border-left:3px solid var(--green);background:rgba(88,214,141,0.04);">
           <strong style="color:var(--green);">D — Rachat + CVV combined:</strong> Total net cost €\${bothCostNet.toLocaleString('fr-FR')}.
@@ -1432,12 +1450,12 @@ function renderLifetimePensionTable() {
           <br><em style="color:var(--muted);">Simple, free, and risk-free — but you give up pension income from age 65–67 and need more capital.</em>
         </div>
         <div style="padding:10px;border-left:3px solid #f39c12;background:rgba(243,156,18,0.06);">
-          <strong style="color:#f39c12;">F — CVV during bridge + claim at 67 (taux plein automatique):</strong>
-          The <strong>best value scenario</strong>. Pay CVV (~€2,000/yr × \${gapYears} yrs = €\${cvvCostTotal.toLocaleString('fr-FR')} total) during your bridge period,
-          then claim at 67 where taux plein is <em>automatic</em> — the 0% décote rate is guaranteed by law regardless of missing quarters.
-          The CVV quarters improve your CNAV proportion slightly (from \${calc.quartersAtRetirement} → \${Math.min(calc.quartersAtRetirement + cvvQ, calc.trimestresRequis||172)}/\${calc.trimestresRequis||172}).
-          Estimated pension: <strong>~€\${Math.round(pensionF).toLocaleString('fr-FR')}/month</strong> — nearly identical to full taux plein for only €\${cvvCostTotal.toLocaleString('fr-FR')} vs €\${rachatCostNet.toLocaleString('fr-FR')} for rachat.
-          <br><em style="color:var(--muted);">⚠️ Enroll CVV within 6 months of retiring (form S3705 at CPAM). No rachat needed — save ~€\${rachatCostNet.toLocaleString('fr-FR')} net.</em>
+          <strong style="color:#f39c12;">F — CVV Category \${cvvBracket} during bridge + claim CNAV + Agirc simultaneously at 67 (taux plein automatique):</strong>
+          The <strong>★ chosen strategy</strong>. Pay CVV at Category \${cvvBracket} (€\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} yrs = <strong>€\${cvvCostTotal.toLocaleString('fr-FR')} gross</strong> / ~<strong>€\${cvvCostNet.toLocaleString('fr-FR')} net</strong> after \${Math.round(cvvTMI*100)}% tax deduction) during your bridge period.
+          At 67: taux plein is <em>automatic</em> (0% décote, guaranteed by law). CVV improves your CNAV proportion slightly (from \${calc.quartersAtRetirement} → \${Math.min(calc.quartersAtRetirement + cvvQ, calc.trimestresRequis||172)}/\${calc.trimestresRequis||172} quarters).
+          <strong>⚠️ Important:</strong> In France, CNAV and Agirc-Arrco must be claimed <em>simultaneously</em> ("liquidation globale") — you cannot claim one without the other. Both start at 67.
+          Estimated pension from 67: <strong>~€\${Math.round(pensionF).toLocaleString('fr-FR')}/month</strong> (CNAV + Agirc). No rachat needed — saves €\${rachatCostNet.toLocaleString('fr-FR')} vs Scenario B.
+          <br><em style="color:var(--muted);">⚠️ Enroll CVV within 6 months of retiring (form <strong>S1101</strong> at CPAM). Bridge period age 60–67: full €\${(profile.monthlyRetirementExpenses||0).toLocaleString('fr-FR')}/month from capital (no pension income until 67).</em>
         </div>
       </div>
     </div>
@@ -1462,15 +1480,17 @@ function renderLifetimePensionTable() {
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start;">
           <span style="background:var(--fire);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">4</span>
-          <div><strong style="color:var(--text);">Age 64 — Claim Agirc-Arrco pension (complementary) at legal retirement age:</strong><br>
-          File your Agirc-Arrco claim at age 64 (legal retirement age for born 1974 under 2023 reform). At this age you receive the <strong>full Agirc amount with zero reduction</strong> — no permanent minoration viagère.
-          ✅ The solidarity malus (−10% for 3 years) was <strong>abolished Dec 1, 2023</strong> — no longer relevant.
-          Agirc income starts immediately: ~€\${agircMonthly.toLocaleString('fr-FR')}/month, reducing your capital withdrawal by ~€\${agircMonthly.toLocaleString('fr-FR')}/month for 3 years.</div>
+          <div><strong style="color:var(--text);">Age \${profile.govRetirementAge} — Claim CNAV + Agirc-Arrco simultaneously (mandatory):</strong><br>
+          <strong style="color:var(--red);">⚠️ In France, CNAV and Agirc-Arrco must be claimed at the same time</strong> ("liquidation globale et simultanée" — rule since 2015). You cannot claim one without the other.
+          File a single claim at <em>info-retraite.fr → Demander ma retraite</em> 4–6 months before age \${profile.govRetirementAge}.
+          At \${profile.govRetirementAge}, taux plein is <em>automatic</em> (guaranteed by law) — no décote on CNAV regardless of missing quarters.
+          ✅ The Agirc-Arrco solidarity malus was <strong>abolished Dec 1, 2023</strong> — no reduction for any claim timing.
+          Combined pension from \${profile.govRetirementAge}: ~€\${agircMonthly.toLocaleString('fr-FR')}/month Agirc + CNAV = total ~€\${Math.round(pensionFull).toLocaleString('fr-FR')}/month.</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start;">
           <span style="background:#58a6ff;color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">5</span>
-          <div><strong style="color:var(--text);">Age \${profile.govRetirementAge} — Claim full state pension:</strong><br>
-          File your pension claim 4–6 months in advance at <em>info-retraite.fr → Demander ma retraite</em>. At this point all CVV quarters are validated and rachat quarters are already recorded. Your pension starts the month after the effective claim date.</div>
+          <div><strong style="color:var(--text);">6–12 months before age \${profile.govRetirementAge} — Prepare pension claim:</strong><br>
+          Request your <em>relevé de carrière complet</em> from info-retraite.fr to verify all CVV quarters are registered. Contact CNAV/CARSAT to confirm your trimestresRequis and estimated pension amount before filing. Your claim takes effect the month after submission.</div>
         </div>
       </div>
     </div>

@@ -1301,6 +1301,26 @@ function renderLifetimePensionTable() {
   // Scenario E: wait until 67 — taux plein automatique, extra 2yr bridge cost
   const wait67ExtraCost = (profile.monthlyRetirementExpenses || 0) * 24;
 
+  // Scenarios G & H: comparison — what if you worked until 65 or 67?
+  const trimReqs = calc.trimestresRequis || 172;
+  const calcQuarters = calc.quartersAtRetirement || 0;
+  const propBase = Math.max(1, Math.min(calcQuarters, trimReqs)); // effective quarters at retirement
+  const pensionFullCNAV_base = baseMonthly > 0 ? (baseMonthly / (1 - decoteRaw)) : 0; // CNAV with no rate décote, at current proportion
+
+  const yearsTo65 = Math.max(0, 65 - (profile.targetRetirementAge || 60));
+  const yearsTo67 = Math.max(0, 67 - (profile.targetRetirementAge || 60));
+  const quartersAt65 = Math.min(calcQuarters + yearsTo65 * 4, trimReqs);
+  const quartersAt67 = Math.min(calcQuarters + yearsTo67 * 4, trimReqs);
+  const agircPerYrMo = ((profile.agircPointsPerYear || 0) * 1.4801) / 12;
+
+  const pensionG_CNAV = Math.round(pensionFullCNAV_base * quartersAt65 / propBase);
+  const pensionG_Agirc = agircMonthly + Math.round(agircPerYrMo * yearsTo65);
+  const pensionG = pensionG_CNAV + pensionG_Agirc; // work until 65, claim at 67 (taux plein auto)
+
+  const pensionH_CNAV = Math.round(pensionFullCNAV_base * quartersAt67 / propBase);
+  const pensionH_Agirc = agircMonthly + Math.round(agircPerYrMo * yearsTo67);
+  const pensionH = pensionH_CNAV + pensionH_Agirc; // work until 67, claim at 67 (taux plein auto)
+
   // Scenario F: CVV during bridge (C) + claim at 67 (taux plein automatique)
   // Key insight: at 67, décote RATE = 0% guaranteed regardless of quarters.
   // BUT the CNAV proportion (quarters/trimestresRequis) still applies to the base pension.
@@ -1350,6 +1370,12 @@ function renderLifetimePensionTable() {
     { label: \`F — CVV Cat.\${cvvBracket} (\${gapYears} yrs) + claim CNAV+Agirc at 67\`, pension: pensionF, claimAge: 67,
       cost: scenFCost, color: '#f39c12',
       decote: '0% (auto)', tag: \`✓ ~taux plein · €\${cvvAnnualCost.toLocaleString('fr-FR')}/yr × \${gapYears} = €\${cvvCostTotal.toLocaleString('fr-FR')} gross · ~€\${cvvCostNet.toLocaleString('fr-FR')} net after \${Math.round(cvvTMI*100)}% tax\` },
+    { label: \`G — ★ Comparison: work until 65 (\${yearsTo65} more yrs), claim at 67\`, pension: pensionG, claimAge: 67,
+      cost: 0, color: '#95a5a6',
+      decote: '0% (auto)', tag: \`\${quartersAt65}/\${trimReqs} qtrs · +\${Math.round(agircPerYrMo*yearsTo65)}/mo Agirc · no bridge investment needed\` },
+    { label: \`H — ★ Comparison: work until 67 (\${yearsTo67} more yrs), claim at 67\`, pension: pensionH, claimAge: 67,
+      cost: 0, color: '#7f8c8d',
+      decote: '0% (auto)', tag: \`\${quartersAt67}/\${trimReqs} qtrs · +\${Math.round(agircPerYrMo*yearsTo67)}/mo Agirc · no bridge period at all\` },
   ];
 
   // Find best scenario per age column (highest net total)

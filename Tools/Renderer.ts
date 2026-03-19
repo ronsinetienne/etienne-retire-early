@@ -200,8 +200,17 @@ export function renderDashboard(
           <div class="input-prefix"><span>${currency}</span><input type="number" name="monthlyRetirementExpenses" value="${profile.monthlyRetirementExpenses}" min="0"></div>
         </div>
         <div class="form-group">
-          <label>Expected Annual Return % <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(pre-retirement)</span></label>
+          <label>Expected Annual Return % <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(pre-retirement, gross before tax)</span></label>
           <input type="number" name="estimatedReturn" value="${(profile.estimatedReturn * 100).toFixed(1)}" step="0.1" min="0" max="20">
+        </div>
+        <div class="form-group">
+          <label>Tax on Investment Returns % <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(applied to reduce effective return)</span></label>
+          <input type="number" name="stockReturnTax" value="${(((profile.stockReturnTax ?? 0.30)) * 100).toFixed(0)}" step="1" min="0" max="50">
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;line-height:1.45;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:4px;border-left:2px solid var(--muted);">
+            💡 <strong>French PFU (Flat Tax) = 30%</strong> (12.8% income tax + 17.2% social charges) on dividends &amp; capital gains in a CTO.
+            <strong>PEA after 5 yrs = 17.2%</strong> (social charges only). <strong>Assurance-vie after 8 yrs ≈ 24.7%</strong>.
+            Net return = ${(profile.estimatedReturn*100).toFixed(0)}% × (1 − ${Math.round((profile.stockReturnTax??0.30)*100)}%) = <strong>${((profile.estimatedReturn*(1-(profile.stockReturnTax??0.30)))*100).toFixed(1)}% net</strong> — used in all capital projections.
+          </div>
         </div>
         <div class="form-group">
           <label>Bridge Period Return % <span style="color:var(--muted);font-size:0.8rem;font-weight:400;">(during drawdown)</span></label>
@@ -464,6 +473,96 @@ export function renderDashboard(
       <div class="card-title">Portfolio Projection</div>
       <div id="chart-projection"></div>
     </div>
+
+    <!-- ── Static Capital Breakdown ── -->
+    ${(() => {
+      const yearsToRet = Math.max(0, profile.targetRetirementAge - profile.age);
+      const saleNet = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
+      const agencyFees = Math.round((profile.realEstateValue||0) * 0.04);
+      const diagnostics = 1000;
+      const saleProceedsFull = saleNet - agencyFees - diagnostics;
+      const giftToKids = profile.giftToChildren || 0;
+      const saleProceeds = saleProceedsFull - giftToKids;
+      const grossReturn = profile.estimatedReturn || 0.07;
+      const taxRate = profile.stockReturnTax ?? 0.30;
+      const netReturn = grossReturn * (1 - taxRate);
+      const stocksAtRet = Math.round((profile.stockPortfolio||0) * Math.pow(1 + netReturn, yearsToRet));
+      const cashSavings = profile.currentSavings || 0;
+      const totalCap = saleProceeds + cashSavings + stocksAtRet;
+      const gapYrs = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
+      const bridgeTotal = (profile.monthlyRetirementExpenses||0) * 12 * gapYrs;
+      const PASS = 48060;
+      const passR = (profile.lastGrossSalary||85000) / PASS;
+      const cvvAnn = passR >= 1.0 ? 8632 : passR >= 0.75 ? 6474 : passR >= 0.50 ? 4316 : 2160;
+      const cvvBrk = passR >= 1.0 ? 1 : passR >= 0.75 ? 2 : passR >= 0.50 ? 3 : 4;
+      const cvvTotal = gapYrs * cvvAnn;
+      const cvvTMI = (profile.lastGrossSalary||85000) > 82341 ? 0.41 : (profile.lastGrossSalary||85000) > 28797 ? 0.30 : 0.11;
+      const cvvNet = Math.round(cvvTotal * (1 - cvvTMI));
+      const fmtE = (n: number) => '€' + Math.round(n).toLocaleString('fr-FR');
+      const fmtR = (n: number) => n < 0 ? '−€' + Math.abs(Math.round(n)).toLocaleString('fr-FR') : fmtE(n);
+      const br = profile.bridgeReturn ?? 0.03;
+      const capAtPension = Math.round(totalCap * Math.pow(1 + br, gapYrs) - bridgeTotal - cvvTotal);
+
+      return `
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">💰 Capital at Retirement — Detailed Breakdown</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+        <!-- House Sale -->
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px;">
+          <div style="font-weight:700;color:var(--text);margin-bottom:10px;">🏠 Real Estate — House Sale at Age ${profile.targetRetirementAge}</div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <tr><td style="padding:3px 0;color:var(--muted);">Sale price</td><td style="padding:3px 0;text-align:right;font-weight:600;">${fmtE(profile.realEstateValue||0)}</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">− Mortgage repayment</td><td style="padding:3px 0;text-align:right;color:var(--red);">${fmtR(-(profile.mortgageRemaining||0))}</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">− Agency fees (4% of price)</td><td style="padding:3px 0;text-align:right;color:var(--red);">${fmtR(-agencyFees)}</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">− Diagnostics</td><td style="padding:3px 0;text-align:right;color:var(--red);">${fmtR(-diagnostics)}</td></tr>
+            <tr style="border-top:1px solid var(--border);"><td style="padding:5px 0;color:var(--muted);">= Seller net proceeds</td><td style="padding:5px 0;text-align:right;font-weight:700;">${fmtE(saleProceedsFull)}</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">− Gift to children (tax-free)</td><td style="padding:3px 0;text-align:right;color:var(--red);">${fmtR(-giftToKids)}</td></tr>
+            <tr style="border-top:1px solid var(--border);"><td style="padding:5px 0;font-weight:700;color:var(--green);">= Net to invest</td><td style="padding:5px 0;text-align:right;font-weight:700;color:var(--green);">${fmtE(saleProceeds)}</td></tr>
+          </table>
+          <p style="font-size:11px;color:var(--muted);margin:8px 0 0;">* Notary fees (frais de notaire) paid by buyer — not deducted</p>
+        </div>
+
+        <!-- Stock & Cash -->
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px;">
+          <div style="font-weight:700;color:var(--text);margin-bottom:10px;">📈 Stock Portfolio & Cash at Age ${profile.targetRetirementAge}</div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <tr><td style="padding:3px 0;color:var(--muted);">Stock portfolio today</td><td style="padding:3px 0;text-align:right;font-weight:600;">${fmtE(profile.stockPortfolio||0)}</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">Gross annual return</td><td style="padding:3px 0;text-align:right;">${(grossReturn*100).toFixed(0)}% / yr</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">Tax on returns (PFU)</td><td style="padding:3px 0;text-align:right;color:var(--red);">−${Math.round(taxRate*100)}%</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);font-weight:600;">Net annual return</td><td style="padding:3px 0;text-align:right;font-weight:600;">${(netReturn*100).toFixed(1)}% / yr</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">Growth period</td><td style="padding:3px 0;text-align:right;">${yearsToRet} yrs (age ${profile.age}→${profile.targetRetirementAge})</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">Net investment return</td><td style="padding:3px 0;text-align:right;color:var(--green);">+${fmtE(stocksAtRet - (profile.stockPortfolio||0))}</td></tr>
+            <tr style="border-top:1px solid var(--border);"><td style="padding:5px 0;font-weight:700;color:var(--green);">= Portfolio at retirement</td><td style="padding:5px 0;text-align:right;font-weight:700;color:var(--green);">${fmtE(stocksAtRet)}</td></tr>
+            <tr><td style="padding:3px 0;color:var(--muted);">+ Cash savings</td><td style="padding:3px 0;text-align:right;">${fmtE(cashSavings)}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Total + Bridge summary -->
+      <div style="background:rgba(255,165,0,0.08);border:1px solid rgba(255,165,0,0.3);border-radius:10px;padding:16px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TOTAL INVESTABLE CAPITAL at ${profile.targetRetirementAge}</div>
+            <div style="font-size:22px;font-weight:800;color:var(--fire);">${fmtE(totalCap)}</div>
+            <div style="font-size:11px;color:var(--muted);">${fmtE(saleProceeds)} house + ${fmtE(stocksAtRet)} stocks + ${fmtE(cashSavings)} cash</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">BRIDGE DRAWDOWN (${gapYrs} yrs × ${fmtE(profile.monthlyRetirementExpenses||0)}/mo)</div>
+            <div style="font-size:22px;font-weight:800;color:var(--red);">−${fmtE(bridgeTotal)}</div>
+            <div style="font-size:11px;color:var(--muted);">+ CVV Cat.${cvvBrk}: −${fmtE(cvvTotal)} gross (~−${fmtE(cvvNet)} net)</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">EST. CAPITAL AT ${profile.govRetirementAge} (${(br*100).toFixed(0)}% bridge return)</div>
+            <div style="font-size:22px;font-weight:800;color:var(--green);">${fmtE(capAtPension)}</div>
+            <div style="font-size:11px;color:var(--muted);">before inheritance + pension income</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    })()}
+
     <div class="card">
       <div class="card-title">🤖 AI Action Plan</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
@@ -1045,6 +1144,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   const fd = new FormData(document.getElementById('profile-form'));
   const p = Object.fromEntries([...fd.entries()].map(([k,v]) => [k, isNaN(+v)||k==='notes'?v:+v]));
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
+  p.stockReturnTax = (+fd.get('stockReturnTax')) / 100 || 0.30;
   p.bridgeReturn = (+fd.get('bridgeReturn')) / 100 || 0.03;
   p.lastGrossSalary = +fd.get('lastGrossSalary') || 85000;
   p.inflation = (+fd.get('inflation')) / 100;
@@ -1067,6 +1167,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
   const p = {};
   for (const [k,v] of fd.entries()) p[k] = isNaN(+v)||k==='notes'?v:+v;
   p.estimatedReturn = (+fd.get('estimatedReturn')) / 100;
+  p.stockReturnTax = (+fd.get('stockReturnTax')) / 100 || 0.30;
   p.bridgeReturn = (+fd.get('bridgeReturn')) / 100 || 0.03;
   p.lastGrossSalary = +fd.get('lastGrossSalary') || 85000;
   p.inflation = (+fd.get('inflation')) / 100;

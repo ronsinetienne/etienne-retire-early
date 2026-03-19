@@ -18,9 +18,10 @@ export interface UserProfile {
   inheritanceAge: number;         // age at which inheritance is received
   targetRetirementAge: number;
   monthlyRetirementExpenses: number;
-  estimatedReturn: number; // e.g. 0.07 for 7% — growth phase (pre-retirement)
-  bridgeReturn: number;    // e.g. 0.03 for 3% — conservative return during bridge drawdown
-  lastGrossSalary: number; // last full-year gross salary — determines CVV contribution bracket
+  estimatedReturn: number;   // e.g. 0.07 for 7% — growth phase (pre-retirement), gross before tax
+  stockReturnTax: number;    // e.g. 0.30 for 30% — French PFU flat tax on investment returns
+  bridgeReturn: number;      // e.g. 0.03 for 3% — conservative return during bridge drawdown
+  lastGrossSalary: number;   // last full-year gross salary — determines CVV contribution bracket
   inflation: number;       // e.g. 0.02 for 2%
   notes: string;
   // Government retirement
@@ -71,7 +72,9 @@ export interface FireResult {
 }
 
 export function calculate(profile: UserProfile): FireResult {
-  const r = Math.max(0.001, profile.estimatedReturn - profile.inflation); // real return
+  const tax = profile.stockReturnTax ?? 0.30;
+  const netGrossReturn = (profile.estimatedReturn || 0.07) * (1 - tax); // after-tax gross return
+  const r = Math.max(0.001, netGrossReturn - (profile.inflation || 0.02)); // real after-tax return
   const annualRetirementExpenses = profile.monthlyRetirementExpenses * 12;
   const annualRentalIncome = profile.monthlyRentalIncome * 12;
 

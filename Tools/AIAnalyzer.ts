@@ -110,7 +110,7 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   const saleProceeds    = saleProceedsFull - giftToKids;
   const ageActuel       = profile.age || 51;
   const yearsToRetirement = Math.max(0, profile.targetRetirementAge - ageActuel);
-  const r               = profile.estimatedReturn || 0.05;
+  const r               = (profile.estimatedReturn || 0.07) * (1 - (profile.stockReturnTax ?? 0.30)); // net after-tax return
   const stocksAtRetirement = Math.round((profile.stockPortfolio||0) * Math.pow(1 + r, yearsToRetirement));
   const totalCapital    = saleProceeds + (profile.currentSavings||0) + stocksAtRetirement;
   const br              = profile.bridgeReturn ?? 0.03;
@@ -317,7 +317,7 @@ export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, sc
   const govAge          = profile.govRetirementAge;
   const ageActuel       = profile.age || 51;
   const yearsToRetirement = Math.max(0, retAge - ageActuel);
-  const r               = profile.estimatedReturn || 0.05;
+  const r               = (profile.estimatedReturn || 0.07) * (1 - (profile.stockReturnTax ?? 0.30)); // net after-tax
   const br              = profile.bridgeReturn ?? 0.03;
   const monthly         = profile.monthlyRetirementExpenses || 0;
   const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));

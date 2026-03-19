@@ -24,6 +24,7 @@ const defaultProfile: UserProfile = {
   targetRetirementAge: 60,
   monthlyRetirementExpenses: 3500,
   estimatedReturn: 0.04,
+  stockReturnTax: 0.30,
   bridgeReturn: 0.03,
   lastGrossSalary: 85000,
   inflation: 0.02,

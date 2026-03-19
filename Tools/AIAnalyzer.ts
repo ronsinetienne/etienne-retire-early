@@ -69,10 +69,10 @@ Retirement home (${profile.secondPropertyCity||'Bretagne'}): owned, no mortgage.
 User notes: ${profile.notes || 'none'}`;
 }
 
-async function callAI(client: Anthropic, prompt: string): Promise<Record<string, string>> {
+async function callAI(client: Anthropic, prompt: string, model = 'claude-haiku-4-5', maxTokens = 8192): Promise<Record<string, string>> {
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 8192,
+    model,
+    max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   });
   const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
@@ -264,7 +264,7 @@ After table: 1-paragraph RECOMMENDATION highlighting Scenario F as chosen, expla
     // Run all 4 API calls in parallel
     const [resultA, resultB, resultC, resultD] = await Promise.all([
       callAI(client, promptA),
-      callAI(client, promptB),
+      callAI(client, promptB, 'claude-sonnet-4-6', 16000), // fire plan needs more tokens for detailed table
       callAI(client, promptC),
       callAI(client, promptD),
     ]);
@@ -437,7 +437,7 @@ All pension figures GROSS. Inheritance ${fmt(profile.inheritanceAmount||0)} at a
 After table: note (1) gross pension vs monthly budget, (2) estimated net pension after ~30% tax (CSG+IR).`;
 
   try {
-    const result = await callAI(client, prompt);
+    const result = await callAI(client, prompt, 'claude-sonnet-4-6', 16000);
     return result.firePlan || '<p>No response from AI.</p>';
   } catch (err: any) {
     return `<p style="color:#e74c3c;">AI error: ${err?.message || err}</p>`;

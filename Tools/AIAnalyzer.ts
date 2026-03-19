@@ -148,7 +148,7 @@ export async function analyzeProfile(profile: UserProfile, calc: FireResult): Pr
   const passRatio_     = lastGrossSal / PASS_2026;
   const cvvAnnualCost  = passRatio_ >= 1.0 ? 8632 : passRatio_ >= 0.75 ? 6474 : passRatio_ >= 0.50 ? 4316 : 2160;
   const cvvBracket     = passRatio_ >= 1.0 ? 1 : passRatio_ >= 0.75 ? 2 : passRatio_ >= 0.50 ? 3 : 4;
-  const cvvTMI         = lastGrossSal > 82341 ? 0.41 : lastGrossSal > 28797 ? 0.30 : 0.11;
+  const cvvTMI         = lastGrossSal > 118817 ? 0.41 : lastGrossSal > 41554 ? 0.30 : 0.11;
   const cvvCostTotal   = gapYears * cvvAnnualCost;
   const cvvCostNet     = Math.round(cvvCostTotal * (1 - cvvTMI));
 
@@ -348,7 +348,7 @@ export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, sc
   const passRatio_      = lastGrossSal / PASS_2026;
   const cvvAnnualCost   = passRatio_ >= 1.0 ? 8632 : passRatio_ >= 0.75 ? 6474 : passRatio_ >= 0.50 ? 4316 : 2160;
   const cvvBracket      = passRatio_ >= 1.0 ? 1 : passRatio_ >= 0.75 ? 2 : passRatio_ >= 0.50 ? 3 : 4;
-  const cvvTMI          = lastGrossSal > 82341 ? 0.41 : lastGrossSal > 28797 ? 0.30 : 0.11;
+  const cvvTMI          = lastGrossSal > 118817 ? 0.41 : lastGrossSal > 41554 ? 0.30 : 0.11;
   const cvvCostTotal    = gapYears * cvvAnnualCost;
   const cvvCostNet      = Math.round(cvvCostTotal * (1 - cvvTMI));
   const qtrsWithCvv     = Math.min(quartersAtRetirement + gapYears * 4, trimestresRequis);

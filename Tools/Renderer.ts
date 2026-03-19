@@ -496,7 +496,7 @@ export function renderDashboard(
       const cvvAnn = passR >= 1.0 ? 8632 : passR >= 0.75 ? 6474 : passR >= 0.50 ? 4316 : 2160;
       const cvvBrk = passR >= 1.0 ? 1 : passR >= 0.75 ? 2 : passR >= 0.50 ? 3 : 4;
       const cvvTotal = gapYrs * cvvAnn;
-      const cvvTMI = (profile.lastGrossSalary||85000) > 82341 ? 0.41 : (profile.lastGrossSalary||85000) > 28797 ? 0.30 : 0.11;
+      const cvvTMI = (profile.lastGrossSalary||85000) > 118817 ? 0.41 : (profile.lastGrossSalary||85000) > 41554 ? 0.30 : 0.11;
       const cvvNet = Math.round(cvvTotal * (1 - cvvTMI));
       const fmtE = (n: number) => '€' + Math.round(n).toLocaleString('fr-FR');
       const fmtR = (n: number) => n < 0 ? '−€' + Math.abs(Math.round(n)).toLocaleString('fr-FR') : fmtE(n);
@@ -1437,7 +1437,7 @@ function renderLifetimePensionTable() {
   const passRatio = lastGrossSalary / PASS_2026;
   const cvvAnnualCost = passRatio >= 1.0 ? 8632 : passRatio >= 0.75 ? 6474 : passRatio >= 0.50 ? 4316 : 2160;
   const cvvBracket = passRatio >= 1.0 ? 1 : passRatio >= 0.75 ? 2 : passRatio >= 0.50 ? 3 : 4;
-  const cvvTMI = lastGrossSalary > 82341 ? 0.41 : lastGrossSalary > 28797 ? 0.30 : 0.11;
+  const cvvTMI = lastGrossSalary > 118817 ? 0.41 : lastGrossSalary > 41554 ? 0.30 : 0.11;
   const cvvCostTotal = Math.round(gapYears * cvvAnnualCost);
   const cvvCostNet = Math.round(cvvCostTotal * (1 - cvvTMI));
 

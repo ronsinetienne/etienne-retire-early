@@ -83,6 +83,40 @@ const server = Bun.serve({
       }
     }
 
+    // ── Print View — all tabs visible, white background ────────
+    if (url.pathname === '/print' && method === 'GET') {
+      const profile = loadProfile();
+      const calc = calculate(profile);
+      const analysis = loadAnalysis() as any;
+      let html = renderDashboard(profile, calc, analysis);
+      // Inject print CSS overrides just before </head>
+      const printCSS = `
+<style id="print-overrides">
+  /* Show all tab panes */
+  .tab-pane { display: block !important; }
+  /* Hide interactive controls */
+  .tabs, #status-bar, button:not(.no-hide), .form-grid, form,
+  [onclick], input, textarea, select, label { display: none !important; }
+  /* White background for printing */
+  :root { --bg:#fff; --card:#f8f8f8; --border:#ddd; --text:#111; --muted:#555; }
+  body { background: #fff; color: #111; }
+  /* Section breaks */
+  .tab-pane { page-break-before: always; padding-top: 12px; }
+  .tab-pane:first-of-type { page-break-before: avoid; }
+  /* Print header */
+  #print-header { display: block !important; font-family: sans-serif; padding: 16px 0 8px; border-bottom: 2px solid #f39c12; margin-bottom: 20px; }
+  #print-header h1 { font-size: 22px; color: #f39c12; }
+  #print-header p { font-size: 13px; color: #555; margin-top: 4px; }
+  @media screen { body::before { content: '🖨️ Print this page (Ctrl+P) and choose "Save as PDF"'; display: block; background:#f39c12; color:#000; padding:12px 20px; font-weight:700; font-size:14px; text-align:center; } }
+</style>
+<div id="print-header" style="display:none">
+  <h1>🔥 Retirement Early Plan</h1>
+  <p>Generated ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })} · Etienne Ronsin</p>
+</div>`;
+      html = html.replace('</head>', printCSS + '</head>');
+      return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+
     // ── Get Profile (API) ──────────────────────────────────────
     if (url.pathname === '/api/profile' && method === 'GET') {
       const profile = loadProfile();

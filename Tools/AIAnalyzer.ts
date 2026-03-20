@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { join } from 'path';
 import type { UserProfile } from './Calculator';
 import type { FireResult } from './Calculator';
 
@@ -69,36 +69,30 @@ Retirement home (${profile.secondPropertyCity||'Bretagne'}): owned, no mortgage.
 User notes: ${profile.notes || 'none'}`;
 }
 
-async function callAI(client: Anthropic, prompt: string, model = 'claude-opus-4-6', maxTokens = 8192): Promise<Record<string, string>> {
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
-  let cleaned = text.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-  if (response.stop_reason === 'max_tokens') {
-    console.warn('⚠️ Response truncated — attempting JSON repair');
-    cleaned = cleaned.replace(/,\s*"[^"]*$/, '');
-    const lastColon = cleaned.lastIndexOf(':"');
-    if (lastColon > 0 && !cleaned.endsWith('}')) {
-      const lastClose = cleaned.lastIndexOf('"}');
-      if (lastClose < lastColon) {
-        cleaned = cleaned.substring(0, lastColon) + ':"<truncated>"}';
-      } else {
-        cleaned += '}';
-      }
-    }
-    if (!cleaned.endsWith('}')) cleaned += '}';
+const TOOLS_DIR = join(import.meta.dir);
+const CLAUDE_PATH = process.env.CLAUDE_PATH || '';
+
+async function callViaCLI(prompt: string, timeoutMs = 120_000): Promise<Record<string, string>> {
+  const scriptPath = join(TOOLS_DIR, 'run-ai-prompt.sh');
+  const proc = Bun.spawn(
+    [scriptPath, prompt],
+    { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(CLAUDE_PATH ? { CLAUDE_PATH } : {}) } }
+  );
+  const timer = setTimeout(() => { console.warn('[AIAnalyzer] Timeout — killing process'); proc.kill(); }, timeoutMs);
+  try {
+    const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    await proc.exited;
+    clearTimeout(timer);
+    if (proc.exitCode !== 0) throw new Error(`Claude CLI failed (exit ${proc.exitCode}): ${stderr.slice(0, 500)}`);
+    const cleaned = stdout.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
   }
-  return JSON.parse(cleaned);
 }
 
 export async function analyzeProfile(profile: UserProfile, calc: FireResult): Promise<AIAnalysis> {
-  const apiKey = process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY;
-  if (!apiKey) return fallbackAnalysis(calc);
-
-  const client = new Anthropic({ apiKey });
 
   const gapYears        = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
   const saleNet         = Math.max(0, (profile.realEstateValue||0) - (profile.mortgageRemaining||0));
@@ -263,10 +257,10 @@ After table: 1-paragraph RECOMMENDATION highlighting Scenario F as chosen, expla
   try {
     // Run all 4 API calls in parallel
     const [resultA, resultB, resultC, resultD] = await Promise.all([
-      callAI(client, promptA),
-      callAI(client, promptB, 'claude-opus-4-6', 16000), // fire plan needs more tokens for detailed table
-      callAI(client, promptC),
-      callAI(client, promptD),
+      callViaCLI(promptA),
+      callViaCLI(promptB, 600_000), // fire plan needs more time for detailed table
+      callViaCLI(promptC),
+      callViaCLI(promptD),
     ]);
 
     console.log('✅ CallA keys:', Object.keys(resultA));
@@ -313,9 +307,6 @@ function fallbackAnalysis(calc: FireResult): AIAnalysis {
 
 // ── Scenario-specific fire plan ─────────────────────────────────────────────
 export async function analyzeFirePlan(profile: UserProfile, calc: FireResult, scenario: string): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY || (globalThis as any).Bun?.env?.ANTHROPIC_API_KEY;
-  if (!apiKey) return '<p style="color:var(--muted);">No API key configured.</p>';
-  const client = new Anthropic({ apiKey });
 
   const gapYears        = Math.max(0, profile.govRetirementAge - profile.targetRetirementAge);
   const retAge          = profile.targetRetirementAge;
@@ -446,7 +437,7 @@ All pension figures GROSS. Inheritance ${fmt(profile.inheritanceAmount||0)} at a
 After table: note (1) gross pension vs monthly budget, (2) estimated net pension after ~30% tax (CSG+IR).`;
 
   try {
-    const result = await callAI(client, prompt, 'claude-opus-4-6', 16000);
+    const result = await callViaCLI(prompt, 600_000);
     return result.firePlan || '<p>No response from AI.</p>';
   } catch (err: any) {
     return `<p style="color:#e74c3c;">AI error: ${err?.message || err}</p>`;
